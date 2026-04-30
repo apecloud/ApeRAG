@@ -106,9 +106,9 @@ def test_extract_json_object_ignores_non_json_prefix_suffix():
 
 
 def test_suggestion_action_request_normalizes_case_insensitively():
-    request = SuggestionActionRequest(action=" REJECT ")
+    request = SuggestionActionRequest(action=" DISMISS ")
 
-    assert request.action == "reject"
+    assert request.action == "dismiss"
 
 
 def test_suggestion_to_dict_exposes_evidence_refs_and_new_status():

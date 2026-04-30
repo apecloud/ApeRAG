@@ -4,12430 +4,12581 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Legacy compatibility endpoint for existing probes.
-         */
-        get: operations["health_health_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/live": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Live Check */
-        get: operations["health_live_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/ready": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Ready Check */
-        get: operations["health_ready_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Invitation View */
-        post: operations["invitations_create_invitation_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/invitations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Invitations View */
-        get: operations["invitations_list_invitations_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register View */
-        post: operations["auth_register_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Login View */
-        post: operations["auth_login_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Logout View */
-        post: operations["auth_logout_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/user": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get User View
-         * @description Get user info, return 401 if not authenticated
-         */
-        get: operations["users_get_user_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Users View */
-        get: operations["users_list_users_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Change Password View */
-        post: operations["auth_change_password_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/auth/users/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete User View */
-        delete: operations["users_delete_user_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Export Task View
-         * @description Create an async export task to package all object-store files under the collection.
-         */
-        post: operations["create_export_task"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/export-tasks/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Export Task View
-         * @description Query the status and progress of an export task.
-         */
-        get: operations["get_export_task"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/export-tasks/{task_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Download Export View
-         * @description Stream the completed export ZIP file to the client.
-         */
-        get: operations["download_export"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/apikeys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Api Keys View
-         * @description List all API keys for the current user
-         */
-        get: operations["api_keys_list_api_keys_view"];
-        put?: never;
-        /**
-         * Create Api Key View
-         * @description Create a new API key
-         */
-        post: operations["api_keys_create_api_key_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/apikeys/{apikey_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Api Key View
-         * @description Update an API key
-         */
-        put: operations["api_keys_update_api_key_view"];
-        post?: never;
-        /**
-         * Delete Api Key View
-         * @description Delete an API key
-         */
-        delete: operations["api_keys_delete_api_key_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/quotas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Quotas
-         * @description Get quota information for the current user or specific user (admin only)
-         */
-        get: operations["quotas_get_quotas"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/quotas/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Quota
-         * @description Update quota limits for a specific user (admin only) - supports both single and batch updates
-         */
-        put: operations["quotas_update_quota"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/quotas/{user_id}/recalculate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Recalculate Quota Usage
-         * @description Recalculate and update current usage for all quota types for a user (admin only)
-         */
-        post: operations["quotas_recalculate_quota_usage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/system/default-quotas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get System Default Quotas
-         * @description Get system default quota configuration (admin only)
-         */
-        get: operations["quotas_get_system_default_quotas"];
-        /**
-         * Update System Default Quotas
-         * @description Update system default quota configuration (admin only)
-         */
-        put: operations["quotas_update_system_default_quotas"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/embeddings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Embeddings */
-        post: operations["llm_create_embeddings"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Marketplace Collections
-         * @description List all published Collections in marketplace
-         */
-        get: operations["marketplace_list_marketplace_collections"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/subscriptions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List User Subscribed Collections
-         * @description Get user's subscribed Collections
-         */
-        get: operations["marketplace_list_user_subscribed_collections"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/subscribe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Subscribe Collection
-         * @description Subscribe to a Collection
-         */
-        post: operations["marketplace_subscribe_collection"];
-        /**
-         * Unsubscribe Collection
-         * @description Unsubscribe from a Collection
-         */
-        delete: operations["marketplace_unsubscribe_collection"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection
-         * @description Get MarketplaceCollection details (read-only)
-         */
-        get: operations["marketplace_get_marketplace_collection"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Marketplace Collection Documents
-         * @description List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities
-         */
-        get: operations["marketplace_list_marketplace_collection_documents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Document Preview
-         * @description Preview document in MarketplaceCollection (read-only)
-         */
-        get: operations["get_marketplace_document_preview"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/object": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Document Object
-         * @description Get document object from MarketplaceCollection (read-only)
-         */
-        get: operations["get_marketplace_document_object"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Graph
-         * @description Get knowledge graph for MarketplaceCollection (read-only)
-         */
-        get: operations["marketplace_get_marketplace_collection_graph"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph/embedding-map": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Graph Embedding Map
-         * @description Get projected entity coordinates for MarketplaceCollection (read-only).
-         */
-        get: operations["marketplace_get_marketplace_collection_graph_embedding_map"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph/hybrid": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Graph Hybrid
-         * @description Get positioned graph-hybrid data for MarketplaceCollection (read-only).
-         */
-        get: operations["marketplace_get_marketplace_collection_graph_hybrid"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph/entities/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Search Marketplace Collection Graph Entities
-         * @description Vector-recall graph entities for MarketplaceCollection (read-only).
-         */
-        get: operations["marketplace_search_marketplace_collection_graph_entities"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph/entities/{name}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Marketplace Collection Graph Entity Evidence
-         * @description Get bounded source chunks for a MarketplaceCollection graph entity.
-         */
-        get: operations["marketplace_get_marketplace_collection_graph_entity_evidence"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/marketplace/collections/{collection_id}/graph/relations/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get Marketplace Collection Graph Relation Evidence
-         * @description Get bounded source chunks for a MarketplaceCollection graph relation.
-         */
-        post: operations["marketplace_get_marketplace_collection_graph_relation_evidence"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Settings */
-        get: operations["Settings_get_settings"];
-        /** Update Settings */
-        put: operations["Settings_update_settings"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/settings/parser_health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Parser Health */
-        get: operations["Settings_get_parser_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/settings/test_mineru_token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Test Mineru Token */
-        post: operations["Settings_test_mineru_token"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/user": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get User Prompts
-         * @description Get user's prompt configuration with priority resolution.
-         *
-         *     Returns current effective prompts for the user, including:
-         *     - content: Actual prompt content (resolved with priority)
-         *     - source: Where the prompt comes from (user/system/hardcoded)
-         *     - customized: Whether user has customized this prompt
-         *     - description: Optional description
-         */
-        get: operations["prompts_get_user_prompts"];
-        /**
-         * Update User Prompts
-         * @description Batch update user's prompt configurations.
-         *
-         *     Only updates the prompts provided in the request body.
-         *     Prompts not included will remain unchanged.
-         */
-        put: operations["prompts_update_user_prompts"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/user/{prompt_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete User Prompt
-         * @description Delete user's specific prompt configuration (reset to system default).
-         *
-         *     Returns the new effective content after deletion.
-         */
-        delete: operations["prompts_delete_user_prompt"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/user/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset User Prompts
-         * @description Batch reset user's prompt configurations.
-         *
-         *     If 'types' is not provided, resets all prompts.
-         */
-        post: operations["prompts_reset_user_prompts"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/system": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get System Prompts
-         * @description Get system default prompts (for reference).
-         *
-         *     Can query a specific type or all types.
-         */
-        get: operations["prompts_get_system_prompts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Preview Prompt
-         * @description Preview how a prompt template will be rendered with given variables.
-         */
-        post: operations["prompts_preview_prompt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/prompts/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Validate Prompt
-         * @description Validate prompt template syntax (Jinja2) and check for required variables.
-         */
-        post: operations["prompts_validate_prompt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/web/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Web Search Endpoint
-         * @description Perform best-effort web search with domain targeting.
-         *
-         *     Logic:
-         *     - If a JINA API key is configured for the current user (or public provider), use JINA first
-         *     - Otherwise use DuckDuckGo directly
-         *     - DuckDuckGo internally retries a small backend fallback chain for better zero-config reliability
-         *     - External provider failures are soft-failed: the endpoint returns an empty result set plus lightweight
-         *       diagnostics instead of 500 so callers can distinguish empty, unavailable, and fallback states
-         */
-        post: operations["web_access_web_search_endpoint"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/web/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Web Read Endpoint
-         * @description Read and extract content from web pages.
-         *
-         *     Supports:
-         *     - Single URL or multiple URLs (use url_list array)
-         *     - Serial processing for multiple URLs
-         *     - Configurable timeout and locale settings
-         *     - Multiple reader providers (JINA priority, Trafilatura fallback)
-         *
-         *     Logic:
-         *     - Try to get JINA API key from user's provider settings
-         *     - If JINA API key available, try JINA first, fallback to Trafilatura on failure
-         *     - If no JINA API key, use Trafilatura only
-         */
-        post: operations["web_access_web_read_endpoint"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/searches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Searches View
-         * @description List persisted search history for the collection.
-         *
-         *     Returns the typed empty shape ``SearchResultList(items=[])`` when
-         *     no history has been recorded yet (lesson 9a) — never ``None`` and
-         *     never a raw ``{}``.
-         */
-        get: operations["retrieval_list_searches_view"];
-        put?: never;
-        /**
-         * Create Search View
-         * @description Execute a hybrid search against a collection.
-         *
-         *     When the caller does not own the collection but it is published in
-         *     the marketplace, the service falls back to the owner's namespace
-         *     for provider-key lookup. ``data.save_to_history`` controls whether
-         *     the result is persisted as a ``SearchHistory`` row.
-         */
-        post: operations["retrieval_create_search_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/searches/{search_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Deletesearch
-         * @description Idempotent delete of a persisted search history row.
-         */
-        delete: operations["retrieval_DeleteSearch"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/labels": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Graph Labels View
-         * @description Get all available node labels in the collection's knowledge graph.
-         *
-         *     Empty list is a legitimate result — the collection simply hasn't
-         *     been indexed yet — not a cue to 404 or fall back.
-         */
-        get: operations["knowledge_graph_get_graph_labels_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Knowledge Graph View
-         * @description Get knowledge graph — overview mode or subgraph mode.
-         */
-        get: operations["knowledge_graph_get_knowledge_graph_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/nodes/merge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Merge Nodes View
-         * @description Merge N entities in a collection's knowledge graph into one.
-         *
-         *     Request body:
-         *     ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
-         *
-         *     * ``entity_ids`` must contain at least two ids.
-         *     * ``target_entity_id`` is the surviving entity; if omitted we pick
-         *       the first id in ``entity_ids`` (callers that want "highest
-         *       degree" auto-selection should do that on the client — the
-         *       service layer intentionally does not embed a product policy).
-         *     * The response echoes the merged description **after** LLM
-         *       summarization, so the frontend can refresh the entity detail
-         *       panel without a second fetch.
-         *     * ``edges_redirected`` / ``edges_collapsed`` are always ``0`` by
-         *       design (Wave 7 §K.12 invariant #9) — alias redirect happens at
-         *       indexer write-time via the
-         *       :class:`LineageGraphStoreWithAliasRedirect` decorator, not as
-         *       part of the merge call, so the merge action has no "explicit
-         *       edge re-anchor count" to surface. The fields are kept on the
-         *       response shape for backward-compat with the existing frontend.
-         */
-        post: operations["knowledge_graph_merge_nodes_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/merge-suggestions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Merge Suggestions View
-         * @description Return the latest run + its suggestions for this collection.
-         *
-         *     When the collection has never started a curation run the response
-         *     is the typed empty shape ``{"run": None, "suggestions": []}`` —
-         *     never ``None`` and never ``{}``. Lesson 9a.
-         */
-        get: operations["knowledge_graph_get_merge_suggestions_view"];
-        put?: never;
-        /**
-         * Merge Suggestions View
-         * @description Start a new graph-curation analysis run (idempotent).
-         */
-        post: operations["knowledge_graph_merge_suggestions_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Handle Suggestion Action View
-         * @description Accept or reject a merge suggestion.
-         */
-        post: operations["knowledge_graph_handle_suggestion_action_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/entities/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Graph Entities Search View
-         * @description Vector-recall the top-K entities matching ``q`` (Wave 7 §K.12.6).
-         *
-         *     Empty / whitespace ``q`` returns ``entities=[]`` — same convention as
-         *     the underlying :class:`GraphSearchService` so MCP tool callers see
-         *     consistent empty-state behaviour.
-         */
-        get: operations["knowledge_graph_graph_entities_search_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/subgraph/expand": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Graph Subgraph Expand View
-         * @description Expand neighbours from anchor entities (Wave 7 §K.12.6).
-         *
-         *     Backed by ``LineageGraphStore.expand_neighbors_n_hops`` via
-         *     ``GraphSearchService.get_subgraph``. Backend implementations cap
-         *     the result size — callers MUST not assume an unbounded subgraph.
-         */
-        post: operations["knowledge_graph_graph_subgraph_expand_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/entities/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Graph Entity Detail View
-         * @description Return the full record for a single entity (Wave 7 §K.12.6).
-         *
-         *     Returns 404 when the entity does not exist in the lineage store
-         *     (gc'd, never extracted, or wrong collection).
-         */
-        get: operations["knowledge_graph_graph_entity_detail_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/entities/{name}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Graph Entity Evidence View
-         * @description Return bounded source chunks for a selected graph entity.
-         */
-        get: operations["knowledge_graph_graph_entity_evidence_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/relations/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Graph Relation Evidence View
-         * @description Return bounded source chunks for a selected graph relation.
-         */
-        post: operations["knowledge_graph_graph_relation_evidence_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/embedding-map": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Graph Embedding Map View
-         * @description Return projected entity coordinates for the hybrid graph view.
-         */
-        get: operations["knowledge_graph_graph_embedding_map_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/graphs/hybrid": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Graph Hybrid View
-         * @description Return positioned graph nodes and relation metadata for the hybrid view.
-         */
-        get: operations["knowledge_graph_graph_hybrid_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/chats/{chat_id}/feedback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Turn Feedback View */
-        get: operations["chats_list_turn_feedback_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/chats/{chat_id}/turns/{turn_id}/feedback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upsert Turn Feedback View */
-        post: operations["chats_upsert_turn_feedback_view"];
-        /** Delete Turn Feedback View */
-        delete: operations["chats_delete_turn_feedback_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/chats/{chat_id}/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Search Chat Files View
-         * @description Search files within a specific chat using hybrid search capabilities
-         */
-        post: operations["chats_search_chat_files_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/chats/{chat_id}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Upload Chat Document View
-         * @description Upload a document to a chat session
-         */
-        post: operations["chats_upload_chat_document_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/chats/{chat_id}/documents/{document_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Chat Document View
-         * @description Get chat document details
-         */
-        get: operations["chats_get_chat_document_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/chat/completions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Openai Chat Completions View
-         * @description OpenAI-compatible chat completions endpoint backed by Agent Runtime V3.
-         */
-        post: operations["openai_openai_chat_completions_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Turn View */
-        post: operations["agent_runtime_create_turn_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Turn Snapshot View */
-        get: operations["agent_runtime_get_turn_snapshot_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Turn View */
-        post: operations["agent_runtime_cancel_turn_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Consent Decision View
-         * @description Record the user's consent decision (D9 §3.2 step 4).
-         *
-         *     Tenant-bound per D9 §2 multi-tenant boundary (architect canonical
-         *     lock msg=19f2c9a9):
-         *
-         *     1. ``required_user`` enforces authentication.
-         *     2. ``turn_service.get_turn_snapshot`` enforces that the
-         *        authenticated user owns ``(chat_id, turn_id)``;
-         *        ``ResourceNotFoundException`` on miss surfaces as 404 via the
-         *        global exception handler.
-         *     3. ``ConsentService.decide(*, expected_turn_id=...)`` enforces
-         *        that the consent's stashed binding matches both
-         *        ``actor_user_id`` and ``turn_id``. Defense-in-depth so even a
-         *        misrouted request cannot resolve someone else's consent.
-         *
-         *     Returns ``404`` for unknown turn / unknown consent, ``403`` when
-         *     the consent is bound to a different user / turn, ``409`` when a
-         *     decision was already recorded.
-         */
-        post: operations["agent_runtime_post_consent_decision_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/elicit/{elicitation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Elicitation Response View
-         * @description Submit an elicitation response (D9 §5.2 step 4).
-         *
-         *     Tenant-bound the same way as :func:`post_consent_decision_view`
-         *     (per D9 §2 multi-tenant boundary; architect canonical lock
-         *     msg=19f2c9a9): HTTP-layer ``turn_service.get_turn_snapshot``
-         *     ownership pre-check + service-layer
-         *     :class:`ElicitationOwnershipError` defense-in-depth.
-         *
-         *     Schema validation is handled inside
-         *     :meth:`ElicitationService.submit`; a validation failure surfaces
-         *     as ``422`` and the elicitation stays pending so the FE can
-         *     re-prompt with the corrected value.
-         */
-        post: operations["agent_runtime_post_elicitation_response_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream Turn Events View */
-        get: operations["agent_runtime_stream_turn_events_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/bots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Bots V2 View
-         * @description List bots owned by the current user.
-         */
-        get: operations["bots_v2_list_bots_v2_view"];
-        put?: never;
-        /**
-         * Create Bot V2 View
-         * @description Create an agent bot owned by the current user.
-         */
-        post: operations["bots_v2_create_bot_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/bots/{bot_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Bot V2 View
-         * @description Return one bot owned by the current user.
-         */
-        get: operations["bots_v2_get_bot_v2_view"];
-        /**
-         * Update Bot V2 View
-         * @description Update one bot. The path bot_id is canonical.
-         */
-        put: operations["bots_v2_update_bot_v2_view"];
-        post?: never;
-        /**
-         * Delete Bot V2 View
-         * @description Delete one bot owned by the current user. Idempotent.
-         */
-        delete: operations["bots_v2_delete_bot_v2_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/bots/{bot_id}/chats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Chats V2 View
-         * @description List chats under one agent bot.
-         */
-        get: operations["bots_v2_list_chats_v2_view"];
-        put?: never;
-        /**
-         * Create Chat V2 View
-         * @description Create a chat under one agent bot.
-         */
-        post: operations["bots_v2_create_chat_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/bots/{bot_id}/chats/{chat_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Chat V2 View
-         * @description Return one chat with history.
-         */
-        get: operations["bots_v2_get_chat_v2_view"];
-        /**
-         * Update Chat V2 View
-         * @description Update one chat. Path bot_id and chat_id are canonical.
-         */
-        put: operations["bots_v2_update_chat_v2_view"];
-        post?: never;
-        /**
-         * Delete Chat V2 View
-         * @description Delete one chat under one agent bot. Idempotent.
-         */
-        delete: operations["bots_v2_delete_chat_v2_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/bots/{bot_id}/chats/{chat_id}/title": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Chat Title V2 View
-         * @description Generate a title for one chat.
-         */
-        post: operations["bots_v2_generate_chat_title_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-datasets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Evaluation Datasets View */
-        get: operations["evaluation_v2_list_evaluation_datasets_view"];
-        put?: never;
-        /** Create Evaluation Dataset View */
-        post: operations["evaluation_v2_create_evaluation_dataset_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-datasets/{dataset_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Evaluation Dataset View */
-        get: operations["evaluation_v2_get_evaluation_dataset_view"];
-        /** Update Evaluation Dataset View */
-        put: operations["evaluation_v2_update_evaluation_dataset_view"];
-        post?: never;
-        /** Delete Evaluation Dataset View */
-        delete: operations["evaluation_v2_delete_evaluation_dataset_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-datasets/{dataset_id}/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Evaluation Dataset Items View */
-        get: operations["evaluation_v2_list_evaluation_dataset_items_view"];
-        put?: never;
-        /** Append Evaluation Dataset Items View */
-        post: operations["evaluation_v2_append_evaluation_dataset_items_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Evaluation Dataset Items Preview View
-         * @description AI auto-generate QA pairs for the dataset (preview-only).
-         *
-         *     Walks the collection's serving chunks, fires one LLM call per
-         *     substantive chunk, and returns the produced ``{question,
-         *     expected_answer, reference_context}`` items without writing to the
-         *     dataset. The caller (FE) lets the user select / edit and POSTs the
-         *     chosen rows to the existing ``/items`` append endpoint.
-         *
-         *     Architect lock ``msg=05c3ec83`` + ``msg=a9fb7efd``; ``count``
-         *     defaults to 10 and is capped at 100; ``language`` falls back to
-         *     ``Collection.config.language``.
-         */
-        post: operations["evaluation_v2_generate_evaluation_dataset_items_preview_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Evaluation Dataset Item View */
-        put: operations["evaluation_v2_update_evaluation_dataset_item_view"];
-        post?: never;
-        /** Delete Evaluation Dataset Item View */
-        delete: operations["evaluation_v2_delete_evaluation_dataset_item_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Evaluation Runs View */
-        get: operations["evaluation_v2_list_evaluation_runs_view"];
-        put?: never;
-        /** Create Evaluation Run View */
-        post: operations["evaluation_v2_create_evaluation_run_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Evaluation Run View */
-        get: operations["evaluation_v2_get_evaluation_run_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs/{run_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Evaluation Run View */
-        post: operations["evaluation_v2_cancel_evaluation_run_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs/{run_id}/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Evaluation Run Items View */
-        get: operations["evaluation_v2_list_evaluation_run_items_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs/{run_id}/items/{item_id}/attempts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Evaluation Run Item Attempts View */
-        get: operations["evaluation_v2_list_evaluation_run_item_attempts_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/evaluation-runs/{run_id}/items/{item_id}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry Evaluation Run Item View */
-        post: operations["evaluation_v2_retry_evaluation_run_item_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-providers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Model Providers View */
-        get: operations["model_platform_list_model_providers_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-accounts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Model Accounts View */
-        get: operations["model_platform_list_model_accounts_view"];
-        put?: never;
-        /** Create Model Account View */
-        post: operations["model_platform_create_model_account_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-accounts/{account_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Model Account View */
-        put: operations["model_platform_update_model_account_view"];
-        post?: never;
-        /** Delete Model Account View */
-        delete: operations["model_platform_delete_model_account_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-accounts/{account_id}/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate Model Account View */
-        post: operations["model_platform_validate_model_account_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-accounts/{account_id}/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Model Account Models View */
-        get: operations["model_platform_list_model_account_models_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Models View */
-        get: operations["model_platform_list_models_view"];
-        put?: never;
-        /** Create Model View */
-        post: operations["model_platform_create_model_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/models/{model_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Model View */
-        put: operations["model_platform_update_model_view"];
-        post?: never;
-        /** Delete Model View */
-        delete: operations["model_platform_delete_model_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/models/{model_id}/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate Model View */
-        post: operations["model_platform_validate_model_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-uses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Model Uses View */
-        get: operations["model_platform_list_model_uses_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/model-uses/{scenario}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Model Use View */
-        put: operations["model_platform_update_model_use_view"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/test-mineru-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Test Mineru Token View
-         * @description Probe an upstream MinerU API token and echo the status envelope.
-         */
-        post: operations["collections_v2_test_mineru_token_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Collections View
-         * @description List collections visible to the current user.
-         */
-        get: operations["collections_v2_list_collections_view"];
-        put?: never;
-        /**
-         * Create Collection View
-         * @description Create a collection owned by the current user.
-         */
-        post: operations["collections_v2_create_collection_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Collection View
-         * @description Return one collection owned by the current user.
-         */
-        get: operations["collections_v2_get_collection_view"];
-        /**
-         * Update Collection View
-         * @description Update a collection owned by the current user.
-         */
-        put: operations["collections_v2_update_collection_view"];
-        post?: never;
-        /**
-         * Delete Collection View
-         * @description Delete a collection owned by the current user. Idempotent.
-         */
-        delete: operations["collections_v2_delete_collection_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/summary/regen": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regen Collection Summary View
-         * @description Trigger Stage 1 summary regen for ``collection_id``.
-         *
-         *     Runs agent-runtime free-explore over the collection (3-tier
-         *     fallback chain) inline and writes the result to
-         *     ``Collection.summary``.
-         *
-         *     Returns 404 if collection doesn't exist or caller doesn't own it,
-         *     409 if a regen is already running on this collection (the FE
-         *     should render "正在生成中, 请稍候" rather than an error),
-         *     503 if all tiers returned invalid output (input not ready or
-         *     LLM/agent unavailable — the reconciler will retry on its next
-         *     sweep), 200 with task_id on success.
-         */
-        post: operations["collections_v2_regen_collection_summary_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/description/regen": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regen Collection Description View
-         * @description Trigger Stage 2 description derive from existing
-         *     ``Collection.summary``.
-         *
-         *     Cheap path — single LLM call, no agent multi-turn (~10s). Useful
-         *     when the summary is current but you want to refresh description
-         *     formatting / language / length.
-         *
-         *     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
-         *     first), 404 if collection doesn't exist or caller doesn't own it,
-         *     409 if a regen is already running on this collection (FE should
-         *     render "正在生成中, 请稍候"), 503 if the LLM call fails the
-         *     quality gate, 200 with task_id on success.
-         */
-        post: operations["collections_v2_regen_collection_description_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/sharing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Collection Sharing Status View
-         * @description Return marketplace sharing status for a collection owned by the current user.
-         */
-        get: operations["collections_v2_get_collection_sharing_status_view"];
-        put?: never;
-        /**
-         * Publish Collection Sharing View
-         * @description Publish a collection to the marketplace. Owner only.
-         */
-        post: operations["collections_v2_publish_collection_sharing_view"];
-        /**
-         * Unpublish Collection Sharing View
-         * @description Unpublish a collection from the marketplace. Owner only.
-         */
-        delete: operations["collections_v2_unpublish_collection_sharing_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Documents V2 View */
-        get: operations["collections_v2_list_documents_v2_view"];
-        put?: never;
-        /** Create Documents V2 View */
-        post: operations["collections_v2_create_documents_v2_view"];
-        /** Delete Documents V2 View */
-        delete: operations["collections_v2_delete_documents_v2_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/staged": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Staged Documents V2 View */
-        get: operations["collections_v2_list_staged_documents_v2_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/{document_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document V2 View */
-        get: operations["collections_v2_get_document_v2_view"];
-        put?: never;
-        post?: never;
-        /** Delete Document V2 View */
-        delete: operations["collections_v2_delete_document_v2_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/{document_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download Document V2 View */
-        get: operations["collections_v2_download_document_v2_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/{document_id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document Preview V2 View */
-        get: operations["collections_v2_get_document_preview_v2_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/{document_id}/object": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document Object V2 View */
-        get: operations["collections_v2_get_document_object_v2_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/{document_id}/rebuild_indexes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Rebuild Document Indexes V2 View */
-        post: operations["collections_v2_rebuild_document_indexes_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/rebuild_failed_indexes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Rebuild Failed Indexes V2 View */
-        post: operations["collections_v2_rebuild_failed_indexes_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload Document V2 View */
-        post: operations["collections_v2_upload_document_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Confirm Documents V2 View */
-        post: operations["collections_v2_confirm_documents_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/fetch-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Fetch Url Document V2 View */
-        post: operations["collections_v2_fetch_url_document_v2_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Health Check
+     * @description Legacy compatibility endpoint for existing probes.
+     */
+    get: operations['health_health_check'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health/live': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Live Check */
+    get: operations['health_live_check'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health/ready': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Ready Check */
+    get: operations['health_ready_check'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/invite': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Invitation View */
+    post: operations['invitations_create_invitation_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/invitations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Invitations View */
+    get: operations['invitations_list_invitations_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/register': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Register View */
+    post: operations['auth_register_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Login View */
+    post: operations['auth_login_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Logout View */
+    post: operations['auth_logout_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/user': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get User View
+     * @description Get user info, return 401 if not authenticated
+     */
+    get: operations['users_get_user_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/users': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Users View */
+    get: operations['users_list_users_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/change-password': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Change Password View */
+    post: operations['auth_change_password_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/auth/users/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete User View */
+    delete: operations['users_delete_user_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create Export Task View
+     * @description Create an async export task to package all object-store files under the collection.
+     */
+    post: operations['create_export_task'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/export-tasks/{task_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Export Task View
+     * @description Query the status and progress of an export task.
+     */
+    get: operations['get_export_task'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/export-tasks/{task_id}/download': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Download Export View
+     * @description Stream the completed export ZIP file to the client.
+     */
+    get: operations['download_export'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/apikeys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Api Keys View
+     * @description List all API keys for the current user
+     */
+    get: operations['api_keys_list_api_keys_view'];
+    put?: never;
+    /**
+     * Create Api Key View
+     * @description Create a new API key
+     */
+    post: operations['api_keys_create_api_key_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/apikeys/{apikey_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Api Key View
+     * @description Update an API key
+     */
+    put: operations['api_keys_update_api_key_view'];
+    post?: never;
+    /**
+     * Delete Api Key View
+     * @description Delete an API key
+     */
+    delete: operations['api_keys_delete_api_key_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/quotas': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Quotas
+     * @description Get quota information for the current user or specific user (admin only)
+     */
+    get: operations['quotas_get_quotas'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/quotas/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Quota
+     * @description Update quota limits for a specific user (admin only) - supports both single and batch updates
+     */
+    put: operations['quotas_update_quota'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/quotas/{user_id}/recalculate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Recalculate Quota Usage
+     * @description Recalculate and update current usage for all quota types for a user (admin only)
+     */
+    post: operations['quotas_recalculate_quota_usage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/system/default-quotas': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get System Default Quotas
+     * @description Get system default quota configuration (admin only)
+     */
+    get: operations['quotas_get_system_default_quotas'];
+    /**
+     * Update System Default Quotas
+     * @description Update system default quota configuration (admin only)
+     */
+    put: operations['quotas_update_system_default_quotas'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/embeddings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Embeddings */
+    post: operations['llm_create_embeddings'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Marketplace Collections
+     * @description List all published Collections in marketplace
+     */
+    get: operations['marketplace_list_marketplace_collections'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/subscriptions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List User Subscribed Collections
+     * @description Get user's subscribed Collections
+     */
+    get: operations['marketplace_list_user_subscribed_collections'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/subscribe': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Subscribe Collection
+     * @description Subscribe to a Collection
+     */
+    post: operations['marketplace_subscribe_collection'];
+    /**
+     * Unsubscribe Collection
+     * @description Unsubscribe from a Collection
+     */
+    delete: operations['marketplace_unsubscribe_collection'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection
+     * @description Get MarketplaceCollection details (read-only)
+     */
+    get: operations['marketplace_get_marketplace_collection'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/documents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Marketplace Collection Documents
+     * @description List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities
+     */
+    get: operations['marketplace_list_marketplace_collection_documents'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Document Preview
+     * @description Preview document in MarketplaceCollection (read-only)
+     */
+    get: operations['get_marketplace_document_preview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/object': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Document Object
+     * @description Get document object from MarketplaceCollection (read-only)
+     */
+    get: operations['get_marketplace_document_object'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Graph
+     * @description Get knowledge graph for MarketplaceCollection (read-only)
+     */
+    get: operations['marketplace_get_marketplace_collection_graph'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph/embedding-map': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Graph Embedding Map
+     * @description Get projected entity coordinates for MarketplaceCollection (read-only).
+     */
+    get: operations['marketplace_get_marketplace_collection_graph_embedding_map'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph/hybrid': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Graph Hybrid
+     * @description Get positioned graph-hybrid data for MarketplaceCollection (read-only).
+     */
+    get: operations['marketplace_get_marketplace_collection_graph_hybrid'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph/entities/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search Marketplace Collection Graph Entities
+     * @description Vector-recall graph entities for MarketplaceCollection (read-only).
+     */
+    get: operations['marketplace_search_marketplace_collection_graph_entities'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph/entities/{name}/evidence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Marketplace Collection Graph Entity Evidence
+     * @description Get bounded source chunks for a MarketplaceCollection graph entity.
+     */
+    get: operations['marketplace_get_marketplace_collection_graph_entity_evidence'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/marketplace/collections/{collection_id}/graph/relations/evidence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Get Marketplace Collection Graph Relation Evidence
+     * @description Get bounded source chunks for a MarketplaceCollection graph relation.
+     */
+    post: operations['marketplace_get_marketplace_collection_graph_relation_evidence'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Settings */
+    get: operations['Settings_get_settings'];
+    /** Update Settings */
+    put: operations['Settings_update_settings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/settings/parser_health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Parser Health */
+    get: operations['Settings_get_parser_health'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/settings/test_mineru_token': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Test Mineru Token */
+    post: operations['Settings_test_mineru_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/user': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get User Prompts
+     * @description Get user's prompt configuration with priority resolution.
+     *
+     *     Returns current effective prompts for the user, including:
+     *     - content: Actual prompt content (resolved with priority)
+     *     - source: Where the prompt comes from (user/system/hardcoded)
+     *     - customized: Whether user has customized this prompt
+     *     - description: Optional description
+     */
+    get: operations['prompts_get_user_prompts'];
+    /**
+     * Update User Prompts
+     * @description Batch update user's prompt configurations.
+     *
+     *     Only updates the prompts provided in the request body.
+     *     Prompts not included will remain unchanged.
+     */
+    put: operations['prompts_update_user_prompts'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/user/{prompt_type}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Delete User Prompt
+     * @description Delete user's specific prompt configuration (reset to system default).
+     *
+     *     Returns the new effective content after deletion.
+     */
+    delete: operations['prompts_delete_user_prompt'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/user/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reset User Prompts
+     * @description Batch reset user's prompt configurations.
+     *
+     *     If 'types' is not provided, resets all prompts.
+     */
+    post: operations['prompts_reset_user_prompts'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/system': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get System Prompts
+     * @description Get system default prompts (for reference).
+     *
+     *     Can query a specific type or all types.
+     */
+    get: operations['prompts_get_system_prompts'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Preview Prompt
+     * @description Preview how a prompt template will be rendered with given variables.
+     */
+    post: operations['prompts_preview_prompt'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/prompts/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Validate Prompt
+     * @description Validate prompt template syntax (Jinja2) and check for required variables.
+     */
+    post: operations['prompts_validate_prompt'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/web/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Web Search Endpoint
+     * @description Perform best-effort web search with domain targeting.
+     *
+     *     Logic:
+     *     - If a JINA API key is configured for the current user (or public provider), use JINA first
+     *     - Otherwise use DuckDuckGo directly
+     *     - DuckDuckGo internally retries a small backend fallback chain for better zero-config reliability
+     *     - External provider failures are soft-failed: the endpoint returns an empty result set plus lightweight
+     *       diagnostics instead of 500 so callers can distinguish empty, unavailable, and fallback states
+     */
+    post: operations['web_access_web_search_endpoint'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/web/read': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Web Read Endpoint
+     * @description Read and extract content from web pages.
+     *
+     *     Supports:
+     *     - Single URL or multiple URLs (use url_list array)
+     *     - Serial processing for multiple URLs
+     *     - Configurable timeout and locale settings
+     *     - Multiple reader providers (JINA priority, Trafilatura fallback)
+     *
+     *     Logic:
+     *     - Try to get JINA API key from user's provider settings
+     *     - If JINA API key available, try JINA first, fallback to Trafilatura on failure
+     *     - If no JINA API key, use Trafilatura only
+     */
+    post: operations['web_access_web_read_endpoint'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/searches': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Searches View
+     * @description List persisted search history for the collection.
+     *
+     *     Returns the typed empty shape ``SearchResultList(items=[])`` when
+     *     no history has been recorded yet (lesson 9a) — never ``None`` and
+     *     never a raw ``{}``.
+     */
+    get: operations['retrieval_list_searches_view'];
+    put?: never;
+    /**
+     * Create Search View
+     * @description Execute a hybrid search against a collection.
+     *
+     *     When the caller does not own the collection but it is published in
+     *     the marketplace, the service falls back to the owner's namespace
+     *     for provider-key lookup. ``data.save_to_history`` controls whether
+     *     the result is persisted as a ``SearchHistory`` row.
+     */
+    post: operations['retrieval_create_search_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/searches/{search_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Deletesearch
+     * @description Idempotent delete of a persisted search history row.
+     */
+    delete: operations['retrieval_DeleteSearch'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/labels': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Graph Labels View
+     * @description Get all available node labels in the collection's knowledge graph.
+     *
+     *     Empty list is a legitimate result — the collection simply hasn't
+     *     been indexed yet — not a cue to 404 or fall back.
+     */
+    get: operations['knowledge_graph_get_graph_labels_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Knowledge Graph View
+     * @description Get knowledge graph — overview mode or subgraph mode.
+     */
+    get: operations['knowledge_graph_get_knowledge_graph_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/nodes/merge': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Merge Nodes View
+     * @description Merge N entities in a collection's knowledge graph into one.
+     *
+     *     Request body:
+     *     ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
+     *
+     *     * ``entity_ids`` must contain at least two ids.
+     *     * ``target_entity_id`` is the surviving entity; if omitted we pick
+     *       the first id in ``entity_ids`` (callers that want "highest
+     *       degree" auto-selection should do that on the client — the
+     *       service layer intentionally does not embed a product policy).
+     *     * The response echoes the merged description **after** LLM
+     *       summarization, so the frontend can refresh the entity detail
+     *       panel without a second fetch.
+     *     * ``edges_redirected`` / ``edges_collapsed`` are always ``0`` by
+     *       design (Wave 7 §K.12 invariant #9) — alias redirect happens at
+     *       indexer write-time via the
+     *       :class:`LineageGraphStoreWithAliasRedirect` decorator, not as
+     *       part of the merge call, so the merge action has no "explicit
+     *       edge re-anchor count" to surface. The fields are kept on the
+     *       response shape for backward-compat with the existing frontend.
+     */
+    post: operations['knowledge_graph_merge_nodes_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/merge-suggestions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Merge Suggestions View
+     * @description Return the latest run + its suggestions for this collection.
+     *
+     *     When the collection has never started a curation run the response
+     *     is the typed empty shape ``{"run": None, "suggestions": []}`` —
+     *     never ``None`` and never ``{}``. Lesson 9a.
+     */
+    get: operations['knowledge_graph_get_merge_suggestions_view'];
+    put?: never;
+    /**
+     * Merge Suggestions View
+     * @description Start a new graph-curation analysis run (idempotent).
+     */
+    post: operations['knowledge_graph_merge_suggestions_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Handle Suggestion Action View
+     * @description Accept or reject a merge suggestion.
+     */
+    post: operations['knowledge_graph_handle_suggestion_action_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/entities/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Graph Entities Search View
+     * @description Vector-recall the top-K entities matching ``q`` (Wave 7 §K.12.6).
+     *
+     *     Empty / whitespace ``q`` returns ``entities=[]`` — same convention as
+     *     the underlying :class:`GraphSearchService` so MCP tool callers see
+     *     consistent empty-state behaviour.
+     */
+    get: operations['knowledge_graph_graph_entities_search_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/subgraph/expand': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Graph Subgraph Expand View
+     * @description Expand neighbours from anchor entities (Wave 7 §K.12.6).
+     *
+     *     Backed by ``LineageGraphStore.expand_neighbors_n_hops`` via
+     *     ``GraphSearchService.get_subgraph``. Backend implementations cap
+     *     the result size — callers MUST not assume an unbounded subgraph.
+     */
+    post: operations['knowledge_graph_graph_subgraph_expand_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/entities/{name}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Graph Entity Detail View
+     * @description Return the full record for a single entity (Wave 7 §K.12.6).
+     *
+     *     Returns 404 when the entity does not exist in the lineage store
+     *     (gc'd, never extracted, or wrong collection).
+     */
+    get: operations['knowledge_graph_graph_entity_detail_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/entities/{name}/evidence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Graph Entity Evidence View
+     * @description Return bounded source chunks for a selected graph entity.
+     */
+    get: operations['knowledge_graph_graph_entity_evidence_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/relations/evidence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Graph Relation Evidence View
+     * @description Return bounded source chunks for a selected graph relation.
+     */
+    post: operations['knowledge_graph_graph_relation_evidence_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/embedding-map': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Graph Embedding Map View
+     * @description Return projected entity coordinates for the hybrid graph view.
+     */
+    get: operations['knowledge_graph_graph_embedding_map_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/graphs/hybrid': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Graph Hybrid View
+     * @description Return positioned graph nodes and relation metadata for the hybrid view.
+     */
+    get: operations['knowledge_graph_graph_hybrid_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/chats/{chat_id}/feedback': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Turn Feedback View */
+    get: operations['chats_list_turn_feedback_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/chats/{chat_id}/turns/{turn_id}/feedback': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upsert Turn Feedback View */
+    post: operations['chats_upsert_turn_feedback_view'];
+    /** Delete Turn Feedback View */
+    delete: operations['chats_delete_turn_feedback_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/chats/{chat_id}/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Search Chat Files View
+     * @description Search files within a specific chat using hybrid search capabilities
+     */
+    post: operations['chats_search_chat_files_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/chats/{chat_id}/documents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Upload Chat Document View
+     * @description Upload a document to a chat session
+     */
+    post: operations['chats_upload_chat_document_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/chats/{chat_id}/documents/{document_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Chat Document View
+     * @description Get chat document details
+     */
+    get: operations['chats_get_chat_document_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/chat/completions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Openai Chat Completions View
+     * @description OpenAI-compatible chat completions endpoint backed by Agent Runtime V3.
+     */
+    post: operations['openai_openai_chat_completions_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Turn View */
+    post: operations['agent_runtime_create_turn_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns/{turn_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Turn Snapshot View */
+    get: operations['agent_runtime_get_turn_snapshot_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns/{turn_id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel Turn View */
+    post: operations['agent_runtime_cancel_turn_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Post Consent Decision View
+     * @description Record the user's consent decision (D9 §3.2 step 4).
+     *
+     *     Tenant-bound per D9 §2 multi-tenant boundary (architect canonical
+     *     lock msg=19f2c9a9):
+     *
+     *     1. ``required_user`` enforces authentication.
+     *     2. ``turn_service.get_turn_snapshot`` enforces that the
+     *        authenticated user owns ``(chat_id, turn_id)``;
+     *        ``ResourceNotFoundException`` on miss surfaces as 404 via the
+     *        global exception handler.
+     *     3. ``ConsentService.decide(*, expected_turn_id=...)`` enforces
+     *        that the consent's stashed binding matches both
+     *        ``actor_user_id`` and ``turn_id``. Defense-in-depth so even a
+     *        misrouted request cannot resolve someone else's consent.
+     *
+     *     Returns ``404`` for unknown turn / unknown consent, ``403`` when
+     *     the consent is bound to a different user / turn, ``409`` when a
+     *     decision was already recorded.
+     */
+    post: operations['agent_runtime_post_consent_decision_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns/{turn_id}/elicit/{elicitation_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Post Elicitation Response View
+     * @description Submit an elicitation response (D9 §5.2 step 4).
+     *
+     *     Tenant-bound the same way as :func:`post_consent_decision_view`
+     *     (per D9 §2 multi-tenant boundary; architect canonical lock
+     *     msg=19f2c9a9): HTTP-layer ``turn_service.get_turn_snapshot``
+     *     ownership pre-check + service-layer
+     *     :class:`ElicitationOwnershipError` defense-in-depth.
+     *
+     *     Schema validation is handled inside
+     *     :meth:`ElicitationService.submit`; a validation failure surfaces
+     *     as ``422`` and the elicitation stays pending so the FE can
+     *     re-prompt with the corrected value.
+     */
+    post: operations['agent_runtime_post_elicitation_response_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/agent/chats/{chat_id}/turns/{turn_id}/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream Turn Events View */
+    get: operations['agent_runtime_stream_turn_events_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/bots': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Bots V2 View
+     * @description List bots owned by the current user.
+     */
+    get: operations['bots_v2_list_bots_v2_view'];
+    put?: never;
+    /**
+     * Create Bot V2 View
+     * @description Create an agent bot owned by the current user.
+     */
+    post: operations['bots_v2_create_bot_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/bots/{bot_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Bot V2 View
+     * @description Return one bot owned by the current user.
+     */
+    get: operations['bots_v2_get_bot_v2_view'];
+    /**
+     * Update Bot V2 View
+     * @description Update one bot. The path bot_id is canonical.
+     */
+    put: operations['bots_v2_update_bot_v2_view'];
+    post?: never;
+    /**
+     * Delete Bot V2 View
+     * @description Delete one bot owned by the current user. Idempotent.
+     */
+    delete: operations['bots_v2_delete_bot_v2_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/bots/{bot_id}/chats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Chats V2 View
+     * @description List chats under one agent bot.
+     */
+    get: operations['bots_v2_list_chats_v2_view'];
+    put?: never;
+    /**
+     * Create Chat V2 View
+     * @description Create a chat under one agent bot.
+     */
+    post: operations['bots_v2_create_chat_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/bots/{bot_id}/chats/{chat_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Chat V2 View
+     * @description Return one chat with history.
+     */
+    get: operations['bots_v2_get_chat_v2_view'];
+    /**
+     * Update Chat V2 View
+     * @description Update one chat. Path bot_id and chat_id are canonical.
+     */
+    put: operations['bots_v2_update_chat_v2_view'];
+    post?: never;
+    /**
+     * Delete Chat V2 View
+     * @description Delete one chat under one agent bot. Idempotent.
+     */
+    delete: operations['bots_v2_delete_chat_v2_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/bots/{bot_id}/chats/{chat_id}/title': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Generate Chat Title V2 View
+     * @description Generate a title for one chat.
+     */
+    post: operations['bots_v2_generate_chat_title_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-datasets': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Evaluation Datasets View */
+    get: operations['evaluation_v2_list_evaluation_datasets_view'];
+    put?: never;
+    /** Create Evaluation Dataset View */
+    post: operations['evaluation_v2_create_evaluation_dataset_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-datasets/{dataset_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Evaluation Dataset View */
+    get: operations['evaluation_v2_get_evaluation_dataset_view'];
+    /** Update Evaluation Dataset View */
+    put: operations['evaluation_v2_update_evaluation_dataset_view'];
+    post?: never;
+    /** Delete Evaluation Dataset View */
+    delete: operations['evaluation_v2_delete_evaluation_dataset_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-datasets/{dataset_id}/items': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Evaluation Dataset Items View */
+    get: operations['evaluation_v2_list_evaluation_dataset_items_view'];
+    put?: never;
+    /** Append Evaluation Dataset Items View */
+    post: operations['evaluation_v2_append_evaluation_dataset_items_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Generate Evaluation Dataset Items Preview View
+     * @description AI auto-generate QA pairs for the dataset (preview-only).
+     *
+     *     Walks the collection's serving chunks, fires one LLM call per
+     *     substantive chunk, and returns the produced ``{question,
+     *     expected_answer, reference_context}`` items without writing to the
+     *     dataset. The caller (FE) lets the user select / edit and POSTs the
+     *     chosen rows to the existing ``/items`` append endpoint.
+     *
+     *     Architect lock ``msg=05c3ec83`` + ``msg=a9fb7efd``; ``count``
+     *     defaults to 10 and is capped at 100; ``language`` falls back to
+     *     ``Collection.config.language``.
+     */
+    post: operations['evaluation_v2_generate_evaluation_dataset_items_preview_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Evaluation Dataset Item View */
+    put: operations['evaluation_v2_update_evaluation_dataset_item_view'];
+    post?: never;
+    /** Delete Evaluation Dataset Item View */
+    delete: operations['evaluation_v2_delete_evaluation_dataset_item_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Evaluation Runs View */
+    get: operations['evaluation_v2_list_evaluation_runs_view'];
+    put?: never;
+    /** Create Evaluation Run View */
+    post: operations['evaluation_v2_create_evaluation_run_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs/{run_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Evaluation Run View */
+    get: operations['evaluation_v2_get_evaluation_run_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs/{run_id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel Evaluation Run View */
+    post: operations['evaluation_v2_cancel_evaluation_run_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs/{run_id}/items': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Evaluation Run Items View */
+    get: operations['evaluation_v2_list_evaluation_run_items_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs/{run_id}/items/{item_id}/attempts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Evaluation Run Item Attempts View */
+    get: operations['evaluation_v2_list_evaluation_run_item_attempts_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/evaluation-runs/{run_id}/items/{item_id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry Evaluation Run Item View */
+    post: operations['evaluation_v2_retry_evaluation_run_item_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-providers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Model Providers View */
+    get: operations['model_platform_list_model_providers_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-accounts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Model Accounts View */
+    get: operations['model_platform_list_model_accounts_view'];
+    put?: never;
+    /** Create Model Account View */
+    post: operations['model_platform_create_model_account_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-accounts/{account_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Model Account View */
+    put: operations['model_platform_update_model_account_view'];
+    post?: never;
+    /** Delete Model Account View */
+    delete: operations['model_platform_delete_model_account_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-accounts/{account_id}/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate Model Account View */
+    post: operations['model_platform_validate_model_account_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-accounts/{account_id}/models': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Model Account Models View */
+    get: operations['model_platform_list_model_account_models_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/models': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Models View */
+    get: operations['model_platform_list_models_view'];
+    put?: never;
+    /** Create Model View */
+    post: operations['model_platform_create_model_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/models/{model_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Model View */
+    put: operations['model_platform_update_model_view'];
+    post?: never;
+    /** Delete Model View */
+    delete: operations['model_platform_delete_model_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/models/{model_id}/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate Model View */
+    post: operations['model_platform_validate_model_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-uses': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Model Uses View */
+    get: operations['model_platform_list_model_uses_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/model-uses/{scenario}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Model Use View */
+    put: operations['model_platform_update_model_use_view'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/test-mineru-token': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Mineru Token View
+     * @description Probe an upstream MinerU API token and echo the status envelope.
+     */
+    post: operations['collections_v2_test_mineru_token_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Collections View
+     * @description List collections visible to the current user.
+     */
+    get: operations['collections_v2_list_collections_view'];
+    put?: never;
+    /**
+     * Create Collection View
+     * @description Create a collection owned by the current user.
+     */
+    post: operations['collections_v2_create_collection_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Collection View
+     * @description Return one collection owned by the current user.
+     */
+    get: operations['collections_v2_get_collection_view'];
+    /**
+     * Update Collection View
+     * @description Update a collection owned by the current user.
+     */
+    put: operations['collections_v2_update_collection_view'];
+    post?: never;
+    /**
+     * Delete Collection View
+     * @description Delete a collection owned by the current user. Idempotent.
+     */
+    delete: operations['collections_v2_delete_collection_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/summary/regen': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Regen Collection Summary View
+     * @description Trigger Stage 1 summary regen for ``collection_id``.
+     *
+     *     Runs agent-runtime free-explore over the collection (3-tier
+     *     fallback chain) inline and writes the result to
+     *     ``Collection.summary``.
+     *
+     *     Returns 404 if collection doesn't exist or caller doesn't own it,
+     *     409 if a regen is already running on this collection (the FE
+     *     should render "正在生成中, 请稍候" rather than an error),
+     *     503 if all tiers returned invalid output (input not ready or
+     *     LLM/agent unavailable — the reconciler will retry on its next
+     *     sweep), 200 with task_id on success.
+     */
+    post: operations['collections_v2_regen_collection_summary_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/description/regen': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Regen Collection Description View
+     * @description Trigger Stage 2 description derive from existing
+     *     ``Collection.summary``.
+     *
+     *     Cheap path — single LLM call, no agent multi-turn (~10s). Useful
+     *     when the summary is current but you want to refresh description
+     *     formatting / language / length.
+     *
+     *     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
+     *     first), 404 if collection doesn't exist or caller doesn't own it,
+     *     409 if a regen is already running on this collection (FE should
+     *     render "正在生成中, 请稍候"), 503 if the LLM call fails the
+     *     quality gate, 200 with task_id on success.
+     */
+    post: operations['collections_v2_regen_collection_description_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/sharing': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Collection Sharing Status View
+     * @description Return marketplace sharing status for a collection owned by the current user.
+     */
+    get: operations['collections_v2_get_collection_sharing_status_view'];
+    put?: never;
+    /**
+     * Publish Collection Sharing View
+     * @description Publish a collection to the marketplace. Owner only.
+     */
+    post: operations['collections_v2_publish_collection_sharing_view'];
+    /**
+     * Unpublish Collection Sharing View
+     * @description Unpublish a collection from the marketplace. Owner only.
+     */
+    delete: operations['collections_v2_unpublish_collection_sharing_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Documents V2 View */
+    get: operations['collections_v2_list_documents_v2_view'];
+    put?: never;
+    /** Create Documents V2 View */
+    post: operations['collections_v2_create_documents_v2_view'];
+    /** Delete Documents V2 View */
+    delete: operations['collections_v2_delete_documents_v2_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/staged': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Staged Documents V2 View */
+    get: operations['collections_v2_list_staged_documents_v2_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/{document_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Document V2 View */
+    get: operations['collections_v2_get_document_v2_view'];
+    put?: never;
+    post?: never;
+    /** Delete Document V2 View */
+    delete: operations['collections_v2_delete_document_v2_view'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/{document_id}/download': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download Document V2 View */
+    get: operations['collections_v2_download_document_v2_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/{document_id}/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Document Preview V2 View */
+    get: operations['collections_v2_get_document_preview_v2_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/{document_id}/object': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Document Object V2 View */
+    get: operations['collections_v2_get_document_object_v2_view'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/{document_id}/rebuild_indexes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rebuild Document Indexes V2 View */
+    post: operations['collections_v2_rebuild_document_indexes_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/rebuild_failed_indexes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rebuild Failed Indexes V2 View */
+    post: operations['collections_v2_rebuild_failed_indexes_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/upload': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload Document V2 View */
+    post: operations['collections_v2_upload_document_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm Documents V2 View */
+    post: operations['collections_v2_confirm_documents_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/collections/{collection_id}/documents/fetch-url': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fetch Url Document V2 View */
+    post: operations['collections_v2_fetch_url_document_v2_view'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /**
-         * ActivityData
-         * @description Inner payload mirroring ``UserActivityEnvelope`` for wire/at-rest
-         *     same-schema parity. ``DataActivityPart`` is transient — never persisted —
-         *     but the wrapped shape is preserved so the live SSE stream stays
-         *     structurally identical to persisted variants.
-         */
-        ActivityData: {
-            activity: components["schemas"]["UserActivityEnvelope"];
-        };
-        /** Agent */
-        "Agent-Input": {
-            completion?: components["schemas"]["ModelSpec-Input"] | null;
-            /** System Prompt Template */
-            system_prompt_template?: string | null;
-            /** Query Prompt Template */
-            query_prompt_template?: string | null;
-            /** Collections */
-            collections?: components["schemas"]["Collection-Input"][] | null;
-        };
-        /** Agent */
-        "Agent-Output": {
-            completion?: components["schemas"]["ModelSpec-Output"] | null;
-            /** System Prompt Template */
-            system_prompt_template?: string | null;
-            /** Query Prompt Template */
-            query_prompt_template?: string | null;
-            /** Collections */
-            collections?: components["schemas"]["Collection-Output"][] | null;
-        };
-        /** AgentTurnEnvelope */
-        AgentTurnEnvelope: {
-            /**
-             * Schema Version
-             * @default agent-runtime-v3.1
-             */
-            schema_version: string;
-            /** Turn Id */
-            turn_id: string;
-            /** Chat Id */
-            chat_id: string;
-            /** User Id */
-            user_id: string;
-            /** Bot Id */
-            bot_id: string;
-            /** Request Id */
-            request_id: string;
-            /** Client Idempotency Key */
-            client_idempotency_key: string;
-            /** Status */
-            status: string;
-            /** Input Text */
-            input_text: string;
-            /** Model Profile */
-            model_profile?: {
-                [key: string]: unknown;
-            };
-            /** Error Code */
-            error_code?: string | null;
-            /** Error Message */
-            error_message?: string | null;
-            /**
-             * Timeline Cursor
-             * @default 0
-             */
-            timeline_cursor: number;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
-        /**
-         * AgentTurnSnapshot
-         * @description Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90, D8.5-BE / #92).
-         *
-         *     Replaces the legacy ``{turn, timeline, artifacts}`` snapshot shape
-         *     with the ``UIMessage``-aligned canonical that the FE renderer
-         *     (#76 / #77 / #78) consumes from both the live SSE stream and the
-         *     at-rest reload path. Per D8 §2 wire / at-rest are byte-equal, so
-         *     no client-side converter is required: a snapshot reload
-         *     deserializes through the same ``UIMessagePart`` discriminated
-         *     union the wire emits.
-         *
-         *     ``runtime_kind`` (D8.5-BE) tags the runtime that produced the
-         *     turn — ``agent_runtime`` for the agent reasoning loop,
-         *     ``direct_chat`` / ``rag_chat`` reserved for future paths. ``role``
-         *     keeps speaker semantics independent of runtime kind.
-         *
-         *     ``parts`` is the persistable subset (transient ``data-activity``
-         *     is stripped before write per :func:`persistable_parts`);
-         *     ``status`` mirrors the runtime ``AgentTurnStatus`` enum value;
-         *     ``error_text`` surfaces an ``error_summary`` artifact's message
-         *     for failed turns. Turn-shape metadata (timestamps, ids, cursor)
-         *     is kept top-level so the FE can render without a separate
-         *     envelope round-trip.
-         *
-         *     Lives in this module rather than ``schemas`` to keep the
-         *     ``UIMessage`` family (parts + envelope) in a single source-of-truth
-         *     file; ``schemas`` re-exports the name for back-compat with
-         *     existing import sites.
-         */
-        AgentTurnSnapshot: {
-            /**
-             * Schema Version
-             * @default agent-runtime-v3.1
-             */
-            schema_version: string;
-            /** Turn Id */
-            turn_id: string;
-            /** Chat Id */
-            chat_id: string;
-            /**
-             * Runtime Kind
-             * @default agent_runtime
-             * @enum {string}
-             */
-            runtime_kind: "agent_runtime" | "direct_chat" | "rag_chat";
-            /** Input Text */
-            input_text?: string | null;
-            /**
-             * Role
-             * @default assistant
-             * @constant
-             */
-            role: "assistant";
-            /** Status */
-            status: string;
-            /** Parts */
-            parts?: (components["schemas"]["TextPart"] | components["schemas"]["ReasoningPart"] | components["schemas"]["ToolPart"] | components["schemas"]["SourceUrlPart"] | components["schemas"]["SourceDocumentPart"] | components["schemas"]["DataCitationPart"] | components["schemas"]["DataActivityPart"] | components["schemas"]["DataToolConsentPart"] | components["schemas"]["DataElicitationPart"])[];
-            /** Error Text */
-            error_text?: string | null;
-            /**
-             * Timeline Cursor
-             * @default 0
-             */
-            timeline_cursor: number;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
-        /** ApiKey */
-        ApiKey: {
-            /** Id */
-            id?: string | null;
-            /** Key */
-            key?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-            /** Last Used At */
-            last_used_at?: string | null;
-        };
-        /** ApiKeyCreate */
-        ApiKeyCreate: {
-            /** Description */
-            description?: string | null;
-        };
-        /**
-         * ApiKeyList
-         * @description A list of API keys
-         */
-        ApiKeyList: {
-            /** Items */
-            items?: components["schemas"]["ApiKey"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** ApiKeyUpdate */
-        ApiKeyUpdate: {
-            /** Description */
-            description?: string | null;
-        };
-        /** Auth */
-        Auth: {
-            /** Type */
-            type?: ("none" | "auth0" | "authing" | "logto" | "cookie") | null;
-            auth0?: components["schemas"]["Auth0"] | null;
-            authing?: components["schemas"]["Authing"] | null;
-            logto?: components["schemas"]["Logto"] | null;
-        };
-        /** Auth0 */
-        Auth0: {
-            /** Auth Domain */
-            auth_domain?: string | null;
-            /** Auth App Id */
-            auth_app_id?: string | null;
-        };
-        /** Authing */
-        Authing: {
-            /** Auth Domain */
-            auth_domain?: string | null;
-            /** Auth App Id */
-            auth_app_id?: string | null;
-        };
-        /** Body_chats_upload_chat_document_view */
-        Body_chats_upload_chat_document_view: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
-        /** Body_collections_v2_create_documents_v2_view */
-        Body_collections_v2_create_documents_v2_view: {
-            /** Files */
-            files: string[];
-        };
-        /** Body_collections_v2_upload_document_v2_view */
-        Body_collections_v2_upload_document_v2_view: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
-        /** Bot */
-        Bot: {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /**
-             * Type
-             * @description The type of bot
-             * @example agent
-             */
-            type?: ("knowledge" | "common" | "agent") | null;
-            config?: components["schemas"]["BotConfig-Output"] | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** BotConfig */
-        "BotConfig-Input": {
-            agent?: components["schemas"]["Agent-Input"] | null;
-        };
-        /** BotConfig */
-        "BotConfig-Output": {
-            agent?: components["schemas"]["Agent-Output"] | null;
-        };
-        /** BotCreate */
-        BotCreate: {
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /**
-             * Type
-             * @description The supported bot type
-             * @example agent
-             */
-            type?: "agent" | null;
-            config?: components["schemas"]["BotConfig-Input"] | null;
-        };
-        /**
-         * BotList
-         * @description A list of bots
-         */
-        BotList: {
-            /** Items */
-            items?: components["schemas"]["Bot"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** BotUpdateRequest */
-        BotUpdateRequest: {
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            config?: components["schemas"]["BotConfig-Input"] | null;
-        };
-        /** CancelRunResponse */
-        CancelRunResponse: {
-            /** Run Id */
-            run_id: string;
-            status: components["schemas"]["EvaluationRunStatus"];
-        };
-        /** CancelTurnResponse */
-        CancelTurnResponse: {
-            /** Turn Id */
-            turn_id: string;
-            /** Status */
-            status: string;
-        };
-        /** ChangePassword */
-        ChangePassword: {
-            /**
-             * Username
-             * @description The username of the user
-             */
-            username?: string | null;
-            /**
-             * Old Password
-             * @description The old password of the user
-             */
-            old_password?: string | null;
-            /**
-             * New Password
-             * @description The new password of the user
-             */
-            new_password?: string | null;
-        };
-        /** CharLocation */
-        CharLocation: {
-            /**
-             * Type
-             * @default char_location
-             * @constant
-             */
-            type: "char_location";
-            /** Doc Index */
-            doc_index: number;
-            /** Doc Title */
-            doc_title?: string | null;
-            /** Start Char */
-            start_char: number;
-            /** End Char */
-            end_char: number;
-        };
-        /** Chat */
-        Chat: {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Bot Id */
-            bot_id?: string | null;
-            /** Peer Id */
-            peer_id?: string | null;
-            /** Peer Type */
-            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk" | "evaluation") | null;
-            /** Status */
-            status?: ("active" | "archived") | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** ChatDetails */
-        ChatDetails: {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Bot Id */
-            bot_id?: string | null;
-            /** Peer Id */
-            peer_id?: string | null;
-            /** Peer Type */
-            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk" | "evaluation") | null;
-            /**
-             * History
-             * @description Phase 8 D8.5-BE (#92): historical conversation turns as canonical ``AgentTurnSnapshot`` envelopes — each turn carries the same ``UIMessagePart[]`` shape the FE consumes from the live SSE stream (D8 §2 wire/at-rest byte-equal). Replaces the legacy ``list[list[ChatMessage]]`` shape; FE renders historical turns with the same renderer used for live turns.
-             */
-            history?: components["schemas"]["AgentTurnSnapshot"][] | null;
-            /** Status */
-            status?: ("active" | "archived") | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /**
-         * ChatList
-         * @description A list of chats with pagination
-         */
-        ChatList: {
-            /**
-             * Total
-             * @description Total number of items
-             * @example 100
-             */
-            total?: number | null;
-            /**
-             * Page
-             * @description Current page number
-             * @example 1
-             */
-            page?: number | null;
-            /**
-             * Page Size
-             * @description Number of items per page
-             * @example 10
-             */
-            page_size?: number | null;
-            /**
-             * Total Pages
-             * @description Total number of pages
-             * @example 10
-             */
-            total_pages?: number | null;
-            /**
-             * Has Next
-             * @description Whether there is a next page
-             * @example true
-             */
-            has_next?: boolean | null;
-            /**
-             * Has Prev
-             * @description Whether there is a previous page
-             * @example false
-             */
-            has_prev?: boolean | null;
-            /** Items */
-            items?: components["schemas"]["Chat"][] | null;
-        };
-        /** ChatUpdate */
-        ChatUpdate: {
-            /** Title */
-            title?: string | null;
-        };
-        /** Chunk */
-        Chunk: {
-            /** Id */
-            id?: string | null;
-            /** Text */
-            text?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** CitationData */
-        CitationData: {
-            /** Cited Text */
-            cited_text: string;
-            /** Location */
-            location: components["schemas"]["CharLocation"] | components["schemas"]["PageLocation"] | components["schemas"]["ContentBlockLocation"] | components["schemas"]["UrlCitationLocation"];
-        };
-        /**
-         * Collection
-         * @description Collection is a collection of documents
-         */
-        "Collection-Input": {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Type */
-            type?: string | null;
-            /** Description */
-            description?: string | null;
-            /**
-             * Summary
-             * @description Auto-generated long-form knowledge-base summary
-             */
-            summary?: string | null;
-            config?: components["schemas"]["CollectionConfig-Input"] | null;
-            /** Status */
-            status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-            /**
-             * Is Published
-             * @description Whether the collection is published to marketplace
-             * @default false
-             */
-            is_published: boolean | null;
-            /**
-             * Published At
-             * @description Publication time, null when not published
-             */
-            published_at?: string | null;
-        };
-        /**
-         * Collection
-         * @description Collection is a collection of documents
-         */
-        "Collection-Output": {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Type */
-            type?: string | null;
-            /** Description */
-            description?: string | null;
-            /**
-             * Summary
-             * @description Auto-generated long-form knowledge-base summary
-             */
-            summary?: string | null;
-            config?: components["schemas"]["CollectionConfig-Output"] | null;
-            /** Status */
-            status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-            /**
-             * Is Published
-             * @description Whether the collection is published to marketplace
-             * @default false
-             */
-            is_published: boolean | null;
-            /**
-             * Published At
-             * @description Publication time, null when not published
-             */
-            published_at?: string | null;
-        };
-        /** CollectionConfig */
-        "CollectionConfig-Input": {
-            /**
-             * Source
-             * @description Source system identifier. Only `system` is supported.
-             * @default system
-             * @example system
-             */
-            source: string | null;
-            /**
-             * Enable Vector
-             * @description Whether to enable vector index
-             * @default true
-             */
-            enable_vector: boolean | null;
-            /**
-             * Enable Fulltext
-             * @description Whether to enable fulltext index
-             * @default true
-             */
-            enable_fulltext: boolean | null;
-            /**
-             * Enable Knowledge Graph
-             * @description Whether to enable knowledge graph index
-             * @default false
-             */
-            enable_knowledge_graph: boolean | null;
-            /**
-             * Graph Backend Type
-             * @description Lineage graph backend for knowledge graph indexing
-             * @default postgres
-             */
-            graph_backend_type: ("postgres" | "neo4j" | "nebula") | null;
-            /**
-             * Fulltext Backend Type
-             * @description Fulltext search backend for the fulltext modality
-             * @default elasticsearch
-             */
-            fulltext_backend_type: ("elasticsearch" | "opensearch") | null;
-            /**
-             * Enable Summary
-             * @description Whether to enable summary index
-             * @default false
-             */
-            enable_summary: boolean | null;
-            /**
-             * Enable Vision
-             * @description Whether to enable vision index
-             * @default false
-             */
-            enable_vision: boolean | null;
-            knowledge_graph_config?: components["schemas"]["KnowledgeGraphConfig"] | null;
-            index_prompts?: components["schemas"]["IndexPrompts"] | null;
-            /**
-             * Language
-             * @description Language for the collection content and processing
-             * @default zh-CN
-             * @example zh-CN
-             */
-            language: ("zh-CN" | "en-US" | "ja-JP" | "ko-KR") | null;
-            embedding?: components["schemas"]["ModelSpec-Input"] | null;
-            completion?: components["schemas"]["ModelSpec-Input"] | null;
-        };
-        /** CollectionConfig */
-        "CollectionConfig-Output": {
-            /**
-             * Source
-             * @description Source system identifier. Only `system` is supported.
-             * @default system
-             * @example system
-             */
-            source: string | null;
-            /**
-             * Enable Vector
-             * @description Whether to enable vector index
-             * @default true
-             */
-            enable_vector: boolean | null;
-            /**
-             * Enable Fulltext
-             * @description Whether to enable fulltext index
-             * @default true
-             */
-            enable_fulltext: boolean | null;
-            /**
-             * Enable Knowledge Graph
-             * @description Whether to enable knowledge graph index
-             * @default false
-             */
-            enable_knowledge_graph: boolean | null;
-            /**
-             * Graph Backend Type
-             * @description Lineage graph backend for knowledge graph indexing
-             * @default postgres
-             */
-            graph_backend_type: ("postgres" | "neo4j" | "nebula") | null;
-            /**
-             * Fulltext Backend Type
-             * @description Fulltext search backend for the fulltext modality
-             * @default elasticsearch
-             */
-            fulltext_backend_type: ("elasticsearch" | "opensearch") | null;
-            /**
-             * Enable Summary
-             * @description Whether to enable summary index
-             * @default false
-             */
-            enable_summary: boolean | null;
-            /**
-             * Enable Vision
-             * @description Whether to enable vision index
-             * @default false
-             */
-            enable_vision: boolean | null;
-            knowledge_graph_config?: components["schemas"]["KnowledgeGraphConfig"] | null;
-            index_prompts?: components["schemas"]["IndexPrompts"] | null;
-            /**
-             * Language
-             * @description Language for the collection content and processing
-             * @default zh-CN
-             * @example zh-CN
-             */
-            language: ("zh-CN" | "en-US" | "ja-JP" | "ko-KR") | null;
-            embedding?: components["schemas"]["ModelSpec-Output"] | null;
-            completion?: components["schemas"]["ModelSpec-Output"] | null;
-        };
-        /** CollectionCreate */
-        CollectionCreate: {
-            /** Title */
-            title?: string | null;
-            config?: components["schemas"]["CollectionConfig-Input"] | null;
-            /** Type */
-            type?: string | null;
-            /** Description */
-            description?: string | null;
-        };
-        /**
-         * CollectionRegenTriggerResponse
-         * @description ``202 Accepted`` envelope for collection regen triggers.
-         */
-        CollectionRegenTriggerResponse: {
-            /**
-             * Collection Id
-             * @description Collection id whose regen was triggered
-             */
-            collection_id: string;
-            /**
-             * Stage
-             * @description Which stage of the regen pipeline was triggered
-             * @enum {string}
-             */
-            stage: "summary" | "description";
-            /**
-             * Task Id
-             * @description Opaque tracking token for the dispatched async task
-             */
-            task_id: string;
-            /**
-             * Estimated Completion Seconds
-             * @description Best-effort latency estimate (Stage 1 ~60s agent explore, Stage 2 ~10s LLM derive)
-             */
-            estimated_completion_seconds: number;
-        };
-        /** CollectionUpdate */
-        CollectionUpdate: {
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            config?: components["schemas"]["CollectionConfig-Input"] | null;
-        };
-        /**
-         * CollectionView
-         * @description Lightweight collection information for lists, MCP and agents
-         */
-        CollectionView: {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Type */
-            type?: string | null;
-            /** Status */
-            status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-            /**
-             * Is Published
-             * @default false
-             */
-            is_published: boolean | null;
-            /**
-             * Published At
-             * @description Publication time, null when not published
-             */
-            published_at?: string | null;
-            /**
-             * Owner User Id
-             * @description Collection owner user ID
-             */
-            owner_user_id?: string | null;
-            /**
-             * Owner Username
-             * @description Collection owner username
-             */
-            owner_username?: string | null;
-            /**
-             * Subscription Id
-             * @description Subscription ID if this is a subscribed collection, null for owned collections
-             */
-            subscription_id?: string | null;
-            /**
-             * Subscribed At
-             * @description Subscription time, null for owned collections
-             */
-            subscribed_at?: string | null;
-        };
-        /**
-         * CollectionViewList
-         * @description A list of collection views
-         */
-        CollectionViewList: {
-            /** Items */
-            items?: components["schemas"]["CollectionView"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** Config */
-        Config: {
-            /**
-             * Admin User Exists
-             * @description Whether the admin user exists
-             */
-            admin_user_exists?: boolean | null;
-            auth?: components["schemas"]["Auth"] | null;
-            /**
-             * Login Methods
-             * @description Available login methods
-             * @example [
-             *       "local",
-             *       "google",
-             *       "github"
-             *     ]
-             */
-            login_methods?: string[] | null;
-        };
-        /** ConfirmDocumentsRequest */
-        ConfirmDocumentsRequest: {
-            /**
-             * Document Ids
-             * @description List of document IDs to confirm
-             */
-            document_ids: string[];
-        };
-        /** ConfirmDocumentsResponse */
-        ConfirmDocumentsResponse: {
-            /**
-             * Confirmed Count
-             * @description Number of documents successfully confirmed
-             */
-            confirmed_count: number;
-            /**
-             * Failed Count
-             * @description Number of documents that failed to confirm
-             */
-            failed_count: number;
-            /**
-             * Failed Documents
-             * @description Details of failed confirmations
-             */
-            failed_documents?: components["schemas"]["FailedDocument"][] | null;
-        };
-        /**
-         * ConsentDecisionBody
-         * @description Body for ``POST /agent/turns/{turn_id}/consent/{tool_call_id}``.
-         *
-         *     ``decision`` is one of ``approved`` / ``denied``. The runtime
-         *     transitions ``state="expired"`` independently when the consent
-         *     times out -- not allowed as an inbound decision.
-         */
-        ConsentDecisionBody: {
-            /** Decision */
-            decision: string;
-        };
-        /**
-         * ConsentDecisionResponse
-         * @description Response for the consent POST -- echoes the resolved part.
-         */
-        ConsentDecisionResponse: {
-            /** Consent Id */
-            consent_id: string;
-            /** Decision */
-            decision: string;
-            /** State */
-            state: string;
-        };
-        /** ContentBlockLocation */
-        ContentBlockLocation: {
-            /**
-             * Type
-             * @default content_block_location
-             * @constant
-             */
-            type: "content_block_location";
-            /** Doc Index */
-            doc_index: number;
-            /** Doc Title */
-            doc_title?: string | null;
-            /** Block Index */
-            block_index: number;
-        };
-        /** CreateTurnRequest */
-        CreateTurnRequest: {
-            /** Query */
-            query: string;
-            completion?: components["schemas"]["ModelSpec-Input"] | null;
-            /** Collections */
-            collections?: components["schemas"]["Collection-Input"][];
-            /**
-             * Web Search Enabled
-             * @default false
-             */
-            web_search_enabled: boolean;
-            /**
-             * Language
-             * @default zh-CN
-             */
-            language: ("en-US" | "zh-CN" | "zh-TW" | "ja-JP" | "ko-KR" | "fr-FR" | "de-DE" | "es-ES" | "it-IT" | "pt-BR" | "ru-RU") | null;
-            /** Files */
-            files?: components["schemas"]["File"][];
-            /** Client Idempotency Key */
-            client_idempotency_key?: string | null;
-        };
-        /** CreateTurnResponse */
-        CreateTurnResponse: {
-            turn: components["schemas"]["AgentTurnEnvelope"];
-            /** Stream Url */
-            stream_url: string;
-        };
-        /**
-         * DataActivityPart
-         * @description Ephemeral UX activity (thinking / searching / etc.).
-         *
-         *     ``transient=True`` is hard-coded — these parts are only ever
-         *     present in the live SSE stream; ``persistable_parts`` strips them
-         *     before at-rest write.
-         */
-        DataActivityPart: {
-            /**
-             * Type
-             * @default data-activity
-             * @constant
-             */
-            type: "data-activity";
-            data: components["schemas"]["ActivityData"];
-            /**
-             * Transient
-             * @default true
-             * @constant
-             */
-            transient: true;
-        };
-        /**
-         * DataCitationPart
-         * @description Anthropic-shape typed citation (D8 §2 + §2.5).
-         *
-         *     Wrapped ``data: CitationData`` shape per D8 §2 same-schema canonical
-         *     (architect lock 2026-04-25, msg=...): wire and at-rest must round-trip
-         *     byte-for-byte with no wire/at-rest converter layer.
-         */
-        DataCitationPart: {
-            /**
-             * Type
-             * @default data-citation
-             * @constant
-             */
-            type: "data-citation";
-            data: components["schemas"]["CitationData"];
-        };
-        /**
-         * DataElicitationPart
-         * @description User input request (D9 §5).
-         *
-         *     Persisted — the user's response becomes part of message history.
-         *     ``schema`` is the JSON-Schema fragment the FE should render as a
-         *     form; ``response`` is the validated submission.
-         */
-        DataElicitationPart: {
-            /**
-             * Type
-             * @default data-elicitation
-             * @constant
-             */
-            type: "data-elicitation";
-            data: components["schemas"]["ElicitationData"];
-        };
-        /**
-         * DataToolConsentPart
-         * @description Tool consent request / decision (D9 §A7).
-         *
-         *     Persisted as part of the audit trail. Raw tool args are stored
-         *     out-of-band by the runtime; only ``args_preview`` (≤ 500 chars
-         *     redacted preview) and ``args_hash`` (sha256 over canonical JSON)
-         *     appear here.
-         */
-        DataToolConsentPart: {
-            /**
-             * Type
-             * @default data-tool-consent
-             * @constant
-             */
-            type: "data-tool-consent";
-            data: components["schemas"]["ToolConsentData"];
-        };
-        /** DeleteDocumentsRequest */
-        DeleteDocumentsRequest: {
-            /**
-             * Document Ids
-             * @description Document IDs to delete
-             */
-            document_ids: string[];
-        };
-        /** DeleteDocumentsResponse */
-        DeleteDocumentsResponse: {
-            /**
-             * Deleted Ids
-             * @description Document IDs accepted for deletion
-             */
-            deleted_ids: string[];
-            /**
-             * Status
-             * @description Batch deletion status
-             * @constant
-             */
-            status: "success";
-        };
-        /** Document */
-        Document: {
-            /** Id */
-            id?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Status */
-            status?: ("UPLOADED" | "EXPIRED" | "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "DELETING" | "DELETED") | null;
-            /** Vector Index Status */
-            vector_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
-            /** Fulltext Index Status */
-            fulltext_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
-            /** Graph Index Status */
-            graph_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
-            /** Summary Index Status */
-            summary_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
-            /** Vision Index Status */
-            vision_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
-            /**
-             * Vector Index Updated
-             * @description Vector index last updated time
-             */
-            vector_index_updated?: string | null;
-            /**
-             * Fulltext Index Updated
-             * @description Fulltext index last updated time
-             */
-            fulltext_index_updated?: string | null;
-            /**
-             * Graph Index Updated
-             * @description Graph index last updated time
-             */
-            graph_index_updated?: string | null;
-            /**
-             * Summary Index Updated
-             * @description Summary index last updated time
-             */
-            summary_index_updated?: string | null;
-            /**
-             * Vision Index Updated
-             * @description Vision index last updated time
-             */
-            vision_index_updated?: string | null;
-            /**
-             * Summary
-             * @description Summary of the document
-             */
-            summary?: string | null;
-            /** Size */
-            size?: number | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /**
-         * DocumentList
-         * @description A list of documents with pagination
-         */
-        DocumentList: {
-            /**
-             * Total
-             * @description Total number of items
-             * @example 100
-             */
-            total?: number | null;
-            /**
-             * Page
-             * @description Current page number
-             * @example 1
-             */
-            page?: number | null;
-            /**
-             * Page Size
-             * @description Number of items per page
-             * @example 10
-             */
-            page_size?: number | null;
-            /**
-             * Total Pages
-             * @description Total number of pages
-             * @example 10
-             */
-            total_pages?: number | null;
-            /**
-             * Has Next
-             * @description Whether there is a next page
-             * @example true
-             */
-            has_next?: boolean | null;
-            /**
-             * Has Prev
-             * @description Whether there is a previous page
-             * @example false
-             */
-            has_prev?: boolean | null;
-            /** Items */
-            items?: components["schemas"]["Document"][] | null;
-        };
-        /** DocumentPreview */
-        DocumentPreview: {
-            /**
-             * Doc Object Path
-             * @description The path to the document object.
-             */
-            doc_object_path?: string | null;
-            /**
-             * Doc Filename
-             * @description The name of the document.
-             */
-            doc_filename?: string | null;
-            /**
-             * Converted Pdf Object Path
-             * @description The path to the converted PDF object.
-             */
-            converted_pdf_object_path?: string | null;
-            /**
-             * Markdown Content
-             * @description The markdown content of the document.
-             */
-            markdown_content?: string | null;
-            /** Chunks */
-            chunks?: components["schemas"]["Chunk"][] | null;
-            /** Vision Chunks */
-            vision_chunks?: components["schemas"]["VisionChunk"][] | null;
-        };
-        /** ElicitationData */
-        ElicitationData: {
-            /** Elicitationid */
-            elicitationId: string;
-            /** Servername */
-            serverName: string;
-            /** Prompt */
-            prompt: string;
-            /** Schema */
-            schema?: {
-                [key: string]: unknown;
-            };
-            /** Response */
-            response?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "pending" | "answered" | "cancelled";
-        };
-        /**
-         * ElicitationSubmitBody
-         * @description Body for ``POST /agent/turns/{turn_id}/elicit/{elicitation_id}``.
-         */
-        ElicitationSubmitBody: {
-            /** Response */
-            response: {
-                [key: string]: unknown;
-            };
-        };
-        /** ElicitationSubmitResponse */
-        ElicitationSubmitResponse: {
-            /** Elicitation Id */
-            elicitation_id: string;
-            /** State */
-            state: string;
-        };
-        /** EmbeddingData */
-        EmbeddingData: {
-            /**
-             * Object
-             * @example embedding
-             */
-            object: string;
-            /** Embedding */
-            embedding: number[];
-            /** Index */
-            index: number;
-        };
-        /**
-         * EmbeddingRequest
-         * @description OpenAI-compatible embedding request.
-         *
-         *     Accepts either the new ``{model_id}`` shape *or* the legacy
-         *     ``{model, model_service_provider, custom_llm_provider}`` triple
-         *     that pre-#1697 callers (provider hurl, external clients) still
-         *     send. ``/api/v1/embeddings`` is permanent OpenAI-compat allowlist
-         *     surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
-         *     triple is resolved to a ``model_id`` server-side via
-         *     ``resolve_legacy_model_id`` before the runtime lookup runs.
-         *     Routes that are post-#1697-only (``/api/v2/...``) require
-         *     ``model_id`` and never accept the triple.
-         */
-        EmbeddingRequest: {
-            /**
-             * Model Id
-             * @description ApeRAG model id
-             */
-            model_id?: string | null;
-            /** Input */
-            input: string | string[];
-            /**
-             * Model
-             * @description Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.
-             */
-            model?: string | null;
-            /**
-             * Model Service Provider
-             * @description Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.
-             */
-            model_service_provider?: string | null;
-            /**
-             * Custom Llm Provider
-             * @description Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.
-             */
-            custom_llm_provider?: string | null;
-        };
-        /** EmbeddingResponse */
-        EmbeddingResponse: {
-            /** Object */
-            object: string;
-            /** Data */
-            data: components["schemas"]["EmbeddingData"][];
-            /** Model */
-            model: string;
-            usage: components["schemas"]["EmbeddingUsage"];
-        };
-        /** EmbeddingUsage */
-        EmbeddingUsage: {
-            /** Prompt Tokens */
-            prompt_tokens: number;
-            /** Total Tokens */
-            total_tokens: number;
-        };
-        /** EvaluationDatasetCreate */
-        EvaluationDatasetCreate: {
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Collection Id */
-            collection_id?: string | null;
-            /** Schema Hint */
-            schema_hint?: {
-                [key: string]: unknown;
-            } | null;
-            /** Items */
-            items?: components["schemas"]["EvaluationDatasetItemCreate"][] | null;
-        };
-        /** EvaluationDatasetEnvelope */
-        EvaluationDatasetEnvelope: {
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
-            /** Collection Id */
-            collection_id?: string | null;
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Schema Hint */
-            schema_hint?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Item Count
-             * @default 0
-             */
-            item_count: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** EvaluationDatasetGeneratePreviewRequest */
-        EvaluationDatasetGeneratePreviewRequest: {
-            /** Collection Id */
-            collection_id: string;
-            /**
-             * Count
-             * @description Number of QA pairs to generate (default 10, max 100).
-             * @default 10
-             */
-            count: number;
-            /**
-             * Language
-             * @description ISO locale (zh-CN / en-US / ja-JP / ko-KR). When omitted the BE falls back to ``Collection.config.language``.
-             */
-            language?: string | null;
-            /**
-             * Prompt Template
-             * @description Override the default per-chunk QA generation prompt. The default ships an explicit instruction to emit JSON with ``question`` and ``expected_answer`` fields in the resolved language.
-             */
-            prompt_template?: string | null;
-        };
-        /** EvaluationDatasetGeneratePreviewResponse */
-        EvaluationDatasetGeneratePreviewResponse: {
-            /** Items */
-            items?: components["schemas"]["GeneratedDatasetItem"][];
-            /**
-             * Requested Count
-             * @default 0
-             */
-            requested_count: number;
-            /**
-             * Delivered Count
-             * @default 0
-             */
-            delivered_count: number;
-            /** Language */
-            language?: string | null;
-        };
-        /** EvaluationDatasetItemCreate */
-        EvaluationDatasetItemCreate: {
-            /**
-             * Case Key
-             * @description Stable user-facing key. Auto-generated when omitted.
-             */
-            case_key?: string | null;
-            /** Input Message */
-            input_message: string;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Sort Key
-             * @default 0
-             */
-            sort_key: number;
-        };
-        /** EvaluationDatasetItemEnvelope */
-        EvaluationDatasetItemEnvelope: {
-            /** Id */
-            id: string;
-            /** Dataset Id */
-            dataset_id: string;
-            /** Case Key */
-            case_key: string;
-            /** Input Message */
-            input_message: string;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /** Sort Key */
-            sort_key: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** EvaluationDatasetItemListResponse */
-        EvaluationDatasetItemListResponse: {
-            /** Items */
-            items?: components["schemas"]["EvaluationDatasetItemEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /** EvaluationDatasetItemUpdate */
-        EvaluationDatasetItemUpdate: {
-            /** Case Key */
-            case_key?: string | null;
-            /** Input Message */
-            input_message?: string | null;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /** Sort Key */
-            sort_key?: number | null;
-        };
-        /** EvaluationDatasetItemsAppendRequest */
-        EvaluationDatasetItemsAppendRequest: {
-            /** Items */
-            items?: components["schemas"]["EvaluationDatasetItemCreate"][];
-        };
-        /** EvaluationDatasetItemsAppendResponse */
-        EvaluationDatasetItemsAppendResponse: {
-            /** Items */
-            items?: components["schemas"]["EvaluationDatasetItemEnvelope"][];
-        };
-        /** EvaluationDatasetListResponse */
-        EvaluationDatasetListResponse: {
-            /** Items */
-            items?: components["schemas"]["EvaluationDatasetEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /** EvaluationDatasetUpdate */
-        EvaluationDatasetUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-        };
-        /**
-         * EvaluationJudgeMode
-         * @enum {string}
-         */
-        EvaluationJudgeMode: "none" | "exact_match" | "llm_as_judge";
-        /** EvaluationPagination */
-        EvaluationPagination: {
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-            /**
-             * Offset
-             * @default 0
-             */
-            offset: number;
-            /**
-             * Limit
-             * @default 20
-             */
-            limit: number;
-        };
-        /** EvaluationRunCreate */
-        EvaluationRunCreate: {
-            /**
-             * Dataset Id
-             * @description Required dataset id for this run
-             */
-            dataset_id: string;
-            /**
-             * Bot Id
-             * @description Optional explicit bot id. When omitted the service resolves the user's default bot (active bot with title 'Default Agent Bot' first, otherwise oldest active bot).
-             */
-            bot_id?: string | null;
-            /** Name */
-            name?: string | null;
-            /**
-             * Answer Model
-             * @description Override the LLM used to generate the answer (RAG / agent). Defaults to the collection's completion model.
-             */
-            answer_model?: string | null;
-            /**
-             * Judge Model
-             * @description Override the LLM used by LLM-as-judge for scoring. Defaults to the collection's completion model.
-             */
-            judge_model?: string | null;
-            judge?: components["schemas"]["JudgeConfig"] | null;
-            /** Bot Config Snapshot */
-            bot_config_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /** Model Config Snapshot */
-            model_config_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** EvaluationRunDetailResponse */
-        EvaluationRunDetailResponse: {
-            run: components["schemas"]["EvaluationRunEnvelope"];
-            summary?: components["schemas"]["EvaluationRunSummary"] | null;
-            progress?: components["schemas"]["EvaluationRunProgress"] | null;
-        };
-        /** EvaluationRunEnvelope */
-        EvaluationRunEnvelope: {
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
-            /** Bot Id */
-            bot_id: string;
-            /** Dataset Id */
-            dataset_id: string;
-            /** Collection Id */
-            collection_id?: string | null;
-            /** Dataset Name */
-            dataset_name?: string | null;
-            /** Name */
-            name?: string | null;
-            status: components["schemas"]["EvaluationRunStatus"];
-            summary?: components["schemas"]["EvaluationRunSummary"] | null;
-            /** Answer Model */
-            answer_model?: string | null;
-            /** Judge Model */
-            judge_model?: string | null;
-            judge_config?: components["schemas"]["JudgeConfig"] | null;
-            /** Bot Config Snapshot */
-            bot_config_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /** Model Config Snapshot */
-            model_config_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /** Error */
-            error?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-        };
-        /** EvaluationRunItemAttemptEnvelope */
-        EvaluationRunItemAttemptEnvelope: {
-            /** Id */
-            id: string;
-            /** Run Item Id */
-            run_item_id: string;
-            /** Run Id */
-            run_id: string;
-            /** Attempt No */
-            attempt_no: number;
-            status: components["schemas"]["EvaluationRunItemAttemptStatus"];
-            /** Agent Chat Id */
-            agent_chat_id?: string | null;
-            /** Agent Turn Id */
-            agent_turn_id?: string | null;
-            /** Answer Text */
-            answer_text?: string | null;
-            /** Judge Result */
-            judge_result?: {
-                [key: string]: unknown;
-            } | null;
-            /** Score */
-            score?: string | null;
-            /** Latency Ms */
-            latency_ms?: number | null;
-            /** Token Usage */
-            token_usage?: {
-                [key: string]: unknown;
-            } | null;
-            /** Error */
-            error?: string | null;
-            /** Retry Reason */
-            retry_reason?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-        };
-        /** EvaluationRunItemAttemptList */
-        EvaluationRunItemAttemptList: {
-            /** Items */
-            items?: components["schemas"]["EvaluationRunItemAttemptEnvelope"][];
-        };
-        /**
-         * EvaluationRunItemAttemptStatus
-         * @enum {string}
-         */
-        EvaluationRunItemAttemptStatus: "queued" | "running" | "completed" | "failed" | "cancelled";
-        /** EvaluationRunItemEnvelope */
-        EvaluationRunItemEnvelope: {
-            /** Id */
-            id: string;
-            /** Run Id */
-            run_id: string;
-            /** Source Dataset Item Id */
-            source_dataset_item_id?: string | null;
-            /** Case Key */
-            case_key: string;
-            /** Sort Key */
-            sort_key: number;
-            /** Input Message */
-            input_message: string;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            status: components["schemas"]["EvaluationRunItemStatus"];
-            /** Best Score */
-            best_score?: string | null;
-            /** Latest Attempt Id */
-            latest_attempt_id?: string | null;
-            latest_attempt?: components["schemas"]["EvaluationRunItemAttemptEnvelope"] | null;
-            /** Attempt Count */
-            attempt_count: number;
-            /** Judge Breakdown */
-            judge_breakdown?: {
-                [key: string]: unknown;
-            } | null;
-            /** Error */
-            error?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** EvaluationRunItemListResponse */
-        EvaluationRunItemListResponse: {
-            /** Items */
-            items?: components["schemas"]["EvaluationRunItemEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /**
-         * EvaluationRunItemStatus
-         * @enum {string}
-         */
-        EvaluationRunItemStatus: "pending" | "running" | "completed" | "failed" | "cancelled";
-        /** EvaluationRunListResponse */
-        EvaluationRunListResponse: {
-            /** Items */
-            items?: components["schemas"]["EvaluationRunEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /** EvaluationRunProgress */
-        EvaluationRunProgress: {
-            /** Percent */
-            percent?: number | null;
-            /** Eta Ms */
-            eta_ms?: number | null;
-        };
-        /**
-         * EvaluationRunStatus
-         * @enum {string}
-         */
-        EvaluationRunStatus: "queued" | "running" | "completed" | "failed" | "cancelled";
-        /** EvaluationRunSummary */
-        EvaluationRunSummary: {
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-            /**
-             * Pending
-             * @default 0
-             */
-            pending: number;
-            /**
-             * Running
-             * @default 0
-             */
-            running: number;
-            /**
-             * Completed
-             * @default 0
-             */
-            completed: number;
-            /**
-             * Failed
-             * @default 0
-             */
-            failed: number;
-            /**
-             * Cancelled
-             * @default 0
-             */
-            cancelled: number;
-            /** Avg Score */
-            avg_score?: number | null;
-            /** Pass Rate */
-            pass_rate?: number | null;
-        };
-        /** ExportTaskResponse */
-        ExportTaskResponse: {
-            /**
-             * Export Task Id
-             * @description Unique ID of the export task
-             */
-            export_task_id: string;
-            /**
-             * Status
-             * @description Current status of the export task
-             * @enum {string}
-             */
-            status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "EXPIRED";
-            /**
-             * Progress
-             * @description Progress percentage (0-100)
-             */
-            progress?: number | null;
-            /**
-             * Message
-             * @description Human-readable status message
-             */
-            message?: string | null;
-            /**
-             * Error Message
-             * @description Error detail when status is FAILED
-             */
-            error_message?: string | null;
-            /**
-             * Download Url
-             * @description URL to download the ZIP file (only set when status is COMPLETED)
-             */
-            download_url?: string | null;
-            /**
-             * File Size
-             * @description Size of the ZIP file in bytes
-             */
-            file_size?: number | null;
-            /** Gmt Created */
-            gmt_created?: string | null;
-            /** Gmt Completed */
-            gmt_completed?: string | null;
-            /**
-             * Gmt Expires
-             * @description Time when the export file will be automatically deleted (7 days after creation)
-             */
-            gmt_expires?: string | null;
-        };
-        /** FailedDocument */
-        FailedDocument: {
-            /** Document Id */
-            document_id?: string | null;
-            /**
-             * Name
-             * @description Name of the document
-             */
-            name?: string | null;
-            /** Error */
-            error?: string | null;
-        };
-        /** Feedback */
-        Feedback: {
-            /** Type */
-            type?: ("good" | "bad") | null;
-            /** Tag */
-            tag?: ("Harmful" | "Unsafe" | "Fake" | "Unhelpful" | "Other") | null;
-            /** Message */
-            message?: string | null;
-        };
-        /** FetchUrlRequest */
-        FetchUrlRequest: {
-            /**
-             * Urls
-             * @description List of URLs to fetch and import (max 10)
-             * @example [
-             *       "https://example.com/article1",
-             *       "https://example.com/article2"
-             *     ]
-             */
-            urls: string[];
-        };
-        /** FetchUrlResponse */
-        FetchUrlResponse: {
-            /**
-             * Results
-             * @description Results for each URL
-             */
-            results: components["schemas"]["FetchUrlResultItem"][];
-            /**
-             * Total
-             * @description Total number of URLs processed
-             */
-            total: number;
-            /**
-             * Succeeded
-             * @description Number of URLs successfully fetched
-             */
-            succeeded: number;
-            /**
-             * Failed
-             * @description Number of URLs that failed
-             */
-            failed: number;
-        };
-        /** FetchUrlResultItem */
-        FetchUrlResultItem: {
-            /**
-             * Url
-             * @description The source URL
-             */
-            url: string;
-            /**
-             * Fetch Status
-             * @description Whether the URL was fetched successfully
-             * @enum {string}
-             */
-            fetch_status: "success" | "error";
-            /**
-             * Document Id
-             * @description ID of the created document (only present on success)
-             */
-            document_id?: string | null;
-            /**
-             * Filename
-             * @description Filename of the created document (only present on success)
-             */
-            filename?: string | null;
-            /**
-             * Size
-             * @description Size of the created document in bytes (only present on success)
-             */
-            size?: number | null;
-            /**
-             * Status
-             * @description Document status (only present on success)
-             */
-            status?: string | null;
-            /**
-             * Error
-             * @description Error message (only present on failure)
-             */
-            error?: string | null;
-        };
-        /** File */
-        File: {
-            /** Id */
-            id?: string | null;
-            /** Name */
-            name?: string | null;
-        };
-        /** FulltextSearchParams */
-        FulltextSearchParams: {
-            /**
-             * Topk
-             * @description Top K results
-             */
-            topk?: number | null;
-            /**
-             * Keywords
-             * @description Custom keywords to use for fulltext search
-             */
-            keywords?: string[] | null;
-        };
-        /** GeneratedDatasetItem */
-        GeneratedDatasetItem: {
-            /** Question */
-            question: string;
-            /** Expected Answer */
-            expected_answer: string;
-            /** Reference Context */
-            reference_context?: string | null;
-        };
-        /**
-         * GraphCurationRunSummary
-         * @description Summary of an asynchronous graph-curation run.
-         */
-        GraphCurationRunSummary: {
-            /**
-             * Id
-             * @description Run ID
-             * @example gcr_abcd1234efgh5678
-             */
-            id: string;
-            /**
-             * Collection Id
-             * @description Collection ID
-             * @example col123
-             */
-            collection_id: string;
-            /**
-             * Status
-             * @description Run lifecycle status
-             * @example COMPLETED
-             * @enum {string}
-             */
-            status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-            /**
-             * Stats
-             * @description Best-effort execution stats for the latest run
-             */
-            stats?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Error Message
-             * @description Failure message if the run failed
-             * @example LLM adjudication timed out
-             */
-            error_message?: string | null;
-            /**
-             * Created
-             * @description Creation timestamp
-             * @example 2026-04-23T00:00:00Z
-             */
-            created?: string | null;
-            /**
-             * Updated
-             * @description Last update timestamp
-             * @example 2026-04-23T00:02:00Z
-             */
-            updated?: string | null;
-            /**
-             * Started
-             * @description Run start timestamp
-             * @example 2026-04-23T00:00:05Z
-             */
-            started?: string | null;
-            /**
-             * Finished
-             * @description Run finish timestamp
-             * @example 2026-04-23T00:02:00Z
-             */
-            finished?: string | null;
-        };
-        /**
-         * GraphEdge
-         * @description Knowledge graph edge representing a relationship
-         */
-        GraphEdge: {
-            /**
-             * Id
-             * @description Unique identifier for the edge
-             * @example 墨香居-深夜读书会
-             */
-            id: string;
-            /**
-             * Type
-             * @description Type of the relationship
-             * @default DIRECTED
-             * @example DIRECTED
-             */
-            type: string | null;
-            /**
-             * Source
-             * @description Source node ID
-             * @example 墨香居
-             */
-            source: string;
-            /**
-             * Target
-             * @description Target node ID
-             * @example 深夜读书会
-             */
-            target: string;
-            /** @description Public edge properties */
-            properties: components["schemas"]["GraphEdgeProperties"];
-        };
-        /**
-         * GraphEdgeProperties
-         * @description Public edge properties for graph visualization.
-         */
-        GraphEdgeProperties: {
-            /**
-             * Weight
-             * @description Relationship weight/strength
-             * @example 9
-             */
-            weight?: number | null;
-            /**
-             * Description
-             * @description Description of the relationship
-             * @example 深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。
-             */
-            description?: string | null;
-            /**
-             * Keywords
-             * @description Keywords associated with the relationship
-             * @example 书店活力,活动
-             */
-            keywords?: string | null;
-            /**
-             * Relation Type
-             * @description Canonical relationship type
-             * @example 经营
-             */
-            relation_type?: string | null;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks supporting this relationship; raw chunk IDs are not exposed
-             * @example 2
-             */
-            source_chunk_count?: number | null;
-        };
-        /**
-         * GraphEmbeddingMapRelation
-         * @description Edge in the embedding-map view.
-         */
-        GraphEmbeddingMapRelation: {
-            /**
-             * Source
-             * @description Source entity name
-             */
-            source: string;
-            /**
-             * Target
-             * @description Target entity name
-             */
-            target: string;
-        };
-        /**
-         * GraphEmbeddingMapResponse
-         * @description Response for ``GET /graphs/embedding-map``.
-         */
-        GraphEmbeddingMapResponse: {
-            /** Points */
-            points: components["schemas"]["GraphEmbeddingPoint"][];
-            /** Relations */
-            relations: components["schemas"]["GraphEmbeddingMapRelation"][];
-            /**
-             * Cluster Labels
-             * @description cluster index -> entity_type label (1:1 mapping)
-             */
-            cluster_labels: {
-                [key: string]: string;
-            };
-            /**
-             * Layout From Cache
-             * @description Whether the 2-D projection was served from the layout cache
-             * @default false
-             */
-            layout_from_cache: boolean;
-        };
-        /**
-         * GraphEmbeddingPoint
-         * @description Single point in the 2-D projection of entity vectors.
-         */
-        GraphEmbeddingPoint: {
-            /**
-             * Name
-             * @description Canonical entity name
-             */
-            name: string;
-            /**
-             * Entity Type
-             * @description Entity type bucket
-             */
-            entity_type: string;
-            /**
-             * Cluster
-             * @description entity_type bucket index (sequential, not k-means clustering)
-             */
-            cluster: number;
-            /**
-             * X
-             * @description X coordinate in the 2-D projection of the entity vectors
-             */
-            x: number;
-            /**
-             * Y
-             * @description Y coordinate in the 2-D projection of the entity vectors
-             */
-            y: number;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks supporting this entity
-             * @default 0
-             */
-            source_chunk_count: number;
-        };
-        /**
-         * GraphEntitiesSearchResponse
-         * @description Response for ``GET /graphs/entities/search``.
-         */
-        GraphEntitiesSearchResponse: {
-            /**
-             * Entities
-             * @description Entities returned by vector recall, ordered by descending similarity score
-             */
-            entities: components["schemas"]["GraphSearchEntity"][];
-        };
-        /**
-         * GraphEvidenceChunk
-         * @description Bounded source chunk returned when a graph item is selected.
-         */
-        GraphEvidenceChunk: {
-            /**
-             * Document Id
-             * @description Source document ID
-             */
-            document_id: string;
-            /**
-             * Document Name
-             * @description Source document name
-             */
-            document_name?: string | null;
-            /**
-             * Parse Version
-             * @description Parse version that produced the lineage member
-             */
-            parse_version: string;
-            /**
-             * Chunk Id
-             * @description Source chunk ID
-             */
-            chunk_id: string;
-            /**
-             * Text
-             * @description Truncated chunk text
-             */
-            text: string;
-            /**
-             * Section Path
-             * @description Source section path
-             */
-            section_path?: string | null;
-            /**
-             * Heading Anchor
-             * @description Source heading anchor
-             */
-            heading_anchor?: string | null;
-            /**
-             * Page Idx
-             * @description Source page index when available
-             */
-            page_idx?: number | null;
-        };
-        /**
-         * GraphEvidenceRef
-         * @description Lightweight source chunk reference for graph entity/relation evidence.
-         *
-         *     ``read_document_chunk`` is document-scoped, so MCP callers need both
-         *     ``document_id`` and ``chunk_id`` to follow graph evidence back to source
-         *     content. ``parse_version`` is carried when available to disambiguate
-         *     lineage across document re-parses.
-         */
-        GraphEvidenceRef: {
-            /**
-             * Document Id
-             * @description Source document ID
-             */
-            document_id: string;
-            /**
-             * Chunk Id
-             * @description Source chunk ID
-             */
-            chunk_id: string;
-            /**
-             * Parse Version
-             * @description Parse version that produced this evidence ref
-             */
-            parse_version?: string | null;
-        };
-        /**
-         * GraphEvidenceResponse
-         * @description Lazy evidence payload for a graph node or edge.
-         */
-        GraphEvidenceResponse: {
-            /**
-             * Subject Type
-             * @description Evidence subject type
-             * @enum {string}
-             */
-            subject_type: "entity" | "relation";
-            /**
-             * Entity Name
-             * @description Entity name when subject_type is entity
-             */
-            entity_name?: string | null;
-            /**
-             * Source
-             * @description Relation source entity
-             */
-            source?: string | null;
-            /**
-             * Target
-             * @description Relation target entity
-             */
-            target?: string | null;
-            /**
-             * Relation Type
-             * @description Relation type when subject_type is relation
-             */
-            relation_type?: string | null;
-            /**
-             * Total Source Chunks
-             * @description Total source chunk references before limiting
-             */
-            total_source_chunks: number;
-            /**
-             * Chunks
-             * @description Bounded source chunk snippets
-             */
-            chunks: components["schemas"]["GraphEvidenceChunk"][];
-        };
-        /**
-         * GraphHybridNode
-         * @description Node in the graph-hybrid visualization.
-         */
-        GraphHybridNode: {
-            /**
-             * Id
-             * @description Unique identifier for the node (entity name)
-             * @example 墨香居
-             */
-            id: string;
-            /**
-             * Labels
-             * @description Labels associated with the node
-             * @example [
-             *       "墨香居"
-             *     ]
-             */
-            labels: string[];
-            /** @description Public node properties */
-            properties: components["schemas"]["GraphNodeProperties"];
-            /**
-             * X
-             * @description X coordinate in the 2-D projection of the entity vector
-             */
-            x: number;
-            /**
-             * Y
-             * @description Y coordinate in the 2-D projection of the entity vector
-             */
-            y: number;
-            /**
-             * Cluster
-             * @description entity_type bucket index (sequential, not k-means clustering)
-             */
-            cluster: number;
-            /**
-             * Value
-             * @description Display size weight derived from relation degree
-             */
-            value: number;
-        };
-        /**
-         * GraphHybridResponse
-         * @description Response for ``GET /graphs/hybrid``.
-         */
-        GraphHybridResponse: {
-            /**
-             * Nodes
-             * @description Positioned entity nodes
-             */
-            nodes: components["schemas"]["GraphHybridNode"][];
-            /**
-             * Edges
-             * @description Relations whose endpoints both have coordinates
-             */
-            edges: components["schemas"]["GraphEdge"][];
-            /**
-             * Cluster Labels
-             * @description cluster index -> entity_type label (1:1 mapping)
-             */
-            cluster_labels: {
-                [key: string]: string;
-            };
-            /**
-             * Is Truncated
-             * @description Whether the node set hit the max_entities limit
-             */
-            is_truncated: boolean;
-            /**
-             * Layout From Cache
-             * @description Whether the 2-D projection was served from the layout cache
-             * @default false
-             */
-            layout_from_cache: boolean;
-            /**
-             * Layout Source
-             * @description Whether node coordinates came from entity vectors or from the facts-layer fallback layout
-             * @default embedding
-             * @enum {string}
-             */
-            layout_source: "embedding" | "facts";
-        };
-        /**
-         * GraphLabelsResponse
-         * @description Response containing available graph labels
-         */
-        GraphLabelsResponse: {
-            /**
-             * Labels
-             * @description List of available node labels in the knowledge graph
-             * @example [
-             *       "墨香居",
-             *       "李明华",
-             *       "林晓雯",
-             *       "深夜读书会"
-             *     ]
-             */
-            labels: string[];
-        };
-        /**
-         * GraphMergeSuggestionEntity
-         * @description Snapshot of an entity at suggestion-generation time.
-         */
-        GraphMergeSuggestionEntity: {
-            /**
-             * Entity Id
-             * @description Entity ID
-             * @example e_moxiangju
-             */
-            entity_id: string;
-            /**
-             * Entity Name
-             * @description Entity name
-             * @example 墨香居
-             */
-            entity_name: string;
-            /**
-             * Entity Type
-             * @description Entity type
-             * @example ORGANIZATION
-             */
-            entity_type: string;
-            /**
-             * Description
-             * @description Entity description
-             * @example 这条老巷子里唯一的旧书店
-             */
-            description: string;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks referenced by this entity
-             * @example 3
-             */
-            source_chunk_count: number;
-        };
-        /**
-         * GraphMergeSuggestionItem
-         * @description Persisted merge suggestion produced by graph curation.
-         */
-        GraphMergeSuggestionItem: {
-            /**
-             * Id
-             * @description Suggestion ID
-             * @example gcs_abcd1234efgh5678
-             */
-            id: string;
-            /**
-             * Run Id
-             * @description Run that produced this suggestion
-             * @example gcr_abcd1234efgh5678
-             */
-            run_id: string;
-            /**
-             * Suggestion Batch Id
-             * @description Backward-compatible alias of run_id for the existing FE review panel
-             * @example gcr_abcd1234efgh5678
-             */
-            suggestion_batch_id: string;
-            /**
-             * Collection Id
-             * @description Collection ID
-             * @example col123
-             */
-            collection_id: string;
-            /**
-             * Status
-             * @description Suggestion lifecycle status
-             * @example PENDING
-             * @enum {string}
-             */
-            status: "PENDING" | "APPLY_PENDING" | "APPLYING" | "APPLIED" | "APPLY_FAILED" | "ACCEPTED" | "REJECTED" | "DISMISSED" | "EXPIRED" | "SUPERSEDED";
-            /**
-             * Entity Ids
-             * @description Entity IDs in the candidate merge set
-             * @example [
-             *       "e_moxiangju",
-             *       "e_old_bookstore"
-             *     ]
-             */
-            entity_ids: string[];
-            /**
-             * Entities
-             * @description Entity snapshots captured when the suggestion was generated
-             */
-            entities: components["schemas"]["GraphMergeSuggestionEntity"][];
-            /**
-             * Target Entity Id
-             * @description Recommended surviving entity ID if the suggestion is accepted
-             * @example e_moxiangju
-             */
-            target_entity_id: string;
-            /** @description Backward-compatible target entity projection for the existing FE review panel */
-            suggested_target_entity: components["schemas"]["GraphMergeSuggestionTargetEntity"];
-            /**
-             * Confidence Score
-             * @description Aggregated confidence score for this suggestion
-             * @example 0.91
-             */
-            confidence_score: number;
-            /**
-             * Reason
-             * @description Human-readable explanation from pairwise LLM adjudication
-             * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
-             */
-            reason: string;
-            /**
-             * Merge Reason
-             * @description Backward-compatible alias of reason for the existing FE review panel
-             * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
-             */
-            merge_reason: string;
-            /**
-             * Evidence
-             * @description Structured supporting evidence used to generate the suggestion
-             */
-            evidence?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Evidence Refs
-             * @description Display-ready source chunk refs supporting this suggestion
-             */
-            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
-            /**
-             * Resolution Note
-             * @description System note explaining why the suggestion left pending state
-             * @example superseded_by:gcs_other
-             */
-            resolution_note?: string | null;
-            /**
-             * Created
-             * @description Creation timestamp
-             * @example 2026-04-23T00:02:00Z
-             */
-            created?: string | null;
-            /**
-             * Updated
-             * @description Last update timestamp
-             * @example 2026-04-23T00:05:00Z
-             */
-            updated?: string | null;
-            /**
-             * Operated At
-             * @description User-operation timestamp for accepted/rejected suggestions
-             * @example 2026-04-23T00:05:00Z
-             */
-            operated_at?: string | null;
-        };
-        /**
-         * GraphMergeSuggestionTargetEntity
-         * @description Legacy FE-compatible target entity projection.
-         */
-        GraphMergeSuggestionTargetEntity: {
-            /**
-             * Entity Name
-             * @description Recommended target entity display name
-             * @example 墨香居
-             */
-            entity_name: string;
-            /**
-             * Entity Type
-             * @description Recommended target entity type
-             * @example ORGANIZATION
-             */
-            entity_type: string;
-        };
-        /**
-         * GraphNode
-         * @description Knowledge graph node representing an entity
-         */
-        GraphNode: {
-            /**
-             * Id
-             * @description Unique identifier for the node (entity name)
-             * @example 墨香居
-             */
-            id: string;
-            /**
-             * Labels
-             * @description Labels associated with the node
-             * @example [
-             *       "墨香居"
-             *     ]
-             */
-            labels: string[];
-            /** @description Public node properties */
-            properties: components["schemas"]["GraphNodeProperties"];
-        };
-        /**
-         * GraphNodeProperties
-         * @description Public node properties for graph visualization.
-         */
-        GraphNodeProperties: {
-            /**
-             * Entity Id
-             * @description Entity identifier
-             * @example 墨香居
-             */
-            entity_id?: string | null;
-            /**
-             * Entity Name
-             * @description Entity display name
-             * @example 墨香居
-             */
-            entity_name?: string | null;
-            /**
-             * Entity Type
-             * @description Type of the entity
-             * @example organization
-             */
-            entity_type?: string | null;
-            /**
-             * Description
-             * @description Description of the entity
-             * @example 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
-             */
-            description?: string | null;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks supporting this entity; raw chunk IDs are not exposed
-             * @example 3
-             */
-            source_chunk_count?: number | null;
-        };
-        /**
-         * GraphRelationEvidenceRequest
-         * @description Request body for lazy relation evidence lookup.
-         */
-        GraphRelationEvidenceRequest: {
-            /**
-             * Source
-             * @description Relation source entity
-             */
-            source: string;
-            /**
-             * Target
-             * @description Relation target entity
-             */
-            target: string;
-            /**
-             * Relation Type
-             * @description Relation type
-             */
-            relation_type: string;
-            /**
-             * Limit
-             * @description Maximum evidence chunks to return
-             * @default 5
-             */
-            limit: number;
-        };
-        /**
-         * GraphRelationView
-         * @description Relation projection used by subgraph expansion responses.
-         */
-        GraphRelationView: {
-            /**
-             * Source
-             * @description Source entity name
-             * @example 李明华
-             */
-            source: string;
-            /**
-             * Target
-             * @description Target entity name
-             * @example 墨香居
-             */
-            target: string;
-            /**
-             * Description
-             * @description Compacted description if available, otherwise joined description parts
-             * @example 李明华经营墨香居
-             */
-            description: string;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks supporting this relationship
-             * @default 0
-             * @example 2
-             */
-            source_chunk_count: number;
-            /**
-             * Evidence Refs
-             * @description Bounded source chunk refs for follow-up read_document_chunk calls
-             */
-            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
-        };
-        /**
-         * GraphSearchEntity
-         * @description Entity returned by ``/graphs/entities/search`` and
-         *     ``/graphs/entities/{name}``.
-         *
-         *     Mirrors :class:`aperag.indexing.graph.EntityWithLineage` projected
-         *     to the public-facing fields. The ``description`` field collapses
-         *     ``compacted_description`` (when present) and ``description_parts``
-         *     using the same rule as :func:`GraphSearchService.compose_context`,
-         *     so MCP callers see one stable text — independent of whether the
-         *     GraphIndexCompactor (task #2) has run yet.
-         */
-        GraphSearchEntity: {
-            /**
-             * Name
-             * @description Canonical entity name
-             * @example 墨香居
-             */
-            name: string;
-            /**
-             * Entity Type
-             * @description Entity type
-             * @example organization
-             */
-            entity_type: string;
-            /**
-             * Description
-             * @description Compacted description if available, otherwise joined description parts
-             * @example 墨香居是这条老巷子里唯一的旧书店。
-             */
-            description: string;
-            /**
-             * Source Chunk Count
-             * @description Number of source chunks supporting this entity
-             * @default 0
-             * @example 3
-             */
-            source_chunk_count: number;
-            /**
-             * Evidence Refs
-             * @description Bounded source chunk refs for follow-up read_document_chunk calls
-             */
-            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
-        };
-        /** GraphSearchParams */
-        GraphSearchParams: {
-            /**
-             * Topk
-             * @description Top K results
-             */
-            topk?: number | null;
-        };
-        /**
-         * GraphSubgraphExpandRequest
-         * @description Request body for ``POST /graphs/subgraph/expand``.
-         */
-        GraphSubgraphExpandRequest: {
-            /**
-             * Entity Names
-             * @description Anchor entity names to expand from
-             * @example [
-             *       "墨香居",
-             *       "李明华"
-             *     ]
-             */
-            entity_names: string[];
-            /**
-             * Hops
-             * @description Number of hops to expand (bounded by backend implementation)
-             * @default 1
-             * @example 1
-             */
-            hops: number;
-        };
-        /**
-         * GraphSubgraphExpandResponse
-         * @description Response for ``POST /graphs/subgraph/expand``.
-         */
-        GraphSubgraphExpandResponse: {
-            /**
-             * Entities
-             * @description Entities reachable from the anchor names within ``hops``
-             */
-            entities: components["schemas"]["GraphSearchEntity"][];
-            /**
-             * Relations
-             * @description Relations connecting the returned entities
-             */
-            relations: components["schemas"]["GraphRelationView"][];
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * IndexPrompts
-         * @description Custom prompts for various index types
-         */
-        IndexPrompts: {
-            /**
-             * Graph
-             * @description Custom prompt for graph/entity extraction
-             */
-            graph?: string | null;
-            /**
-             * Summary
-             * @description Custom prompt for document summarization
-             */
-            summary?: string | null;
-            /**
-             * Vision
-             * @description Custom prompt for image analysis
-             */
-            vision?: string | null;
-        };
-        /** Invitation */
-        Invitation: {
-            /**
-             * Email
-             * @description The email of the user
-             */
-            email?: string | null;
-            /**
-             * Token
-             * @description The token of the invitation
-             */
-            token?: string | null;
-            /**
-             * Created By
-             * @description The ID of the user who created the invitation
-             */
-            created_by?: string | null;
-            /**
-             * Created At
-             * @description The date and time the invitation was created
-             */
-            created_at?: string | null;
-            /**
-             * Is Valid
-             * @description Whether the invitation is valid
-             */
-            is_valid?: boolean | null;
-            /**
-             * Used At
-             * @description The date and time the invitation was used
-             */
-            used_at?: string | null;
-            /**
-             * Role
-             * @description The role of the user (admin, rw, ro)
-             */
-            role?: ("admin" | "rw" | "ro") | null;
-            /**
-             * Expires At
-             * @description The date and time the invitation will expire
-             */
-            expires_at?: string | null;
-        };
-        /** InvitationCreate */
-        InvitationCreate: {
-            /**
-             * Username
-             * @description The username of the user
-             */
-            username?: string | null;
-            /**
-             * Email
-             * @description The email of the user
-             */
-            email?: string | null;
-            /**
-             * Role
-             * @description The role of the user (admin, rw, ro)
-             */
-            role?: ("admin" | "rw" | "ro") | null;
-        };
-        /**
-         * InvitationList
-         * @description A list of invitations
-         */
-        InvitationList: {
-            /** Items */
-            items?: components["schemas"]["Invitation"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** JudgeConfig */
-        JudgeConfig: {
-            /** @default exact_match */
-            mode: components["schemas"]["EvaluationJudgeMode"];
-            /** Model Id */
-            model_id?: string | null;
-            /** Prompt Template */
-            prompt_template?: string | null;
-            /** Score Threshold */
-            score_threshold?: number | null;
-            /** Params */
-            params?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * KnowledgeGraph
-         * @description Knowledge graph containing nodes and edges
-         */
-        KnowledgeGraph: {
-            /**
-             * Nodes
-             * @description List of nodes in the knowledge graph
-             */
-            nodes: components["schemas"]["GraphNode"][];
-            /**
-             * Edges
-             * @description List of edges in the knowledge graph
-             */
-            edges: components["schemas"]["GraphEdge"][];
-            /**
-             * Is Truncated
-             * @description Whether the graph was truncated due to size limits
-             * @example false
-             */
-            is_truncated: boolean;
-        };
-        /**
-         * KnowledgeGraphConfig
-         * @description Configuration for knowledge graph generation
-         */
-        KnowledgeGraphConfig: {
-            /**
-             * Entity Types
-             * @description List of entity types to extract during graph indexing
-             * @example [
-             *       "人物",
-             *       "组织",
-             *       "疾病"
-             *     ]
-             */
-            entity_types?: string[];
-            /**
-             * Per Chunk Timeout Seconds
-             * @description Per-chunk LLM call timeout (seconds); the extractor uses 60s default if unset. Lift for slow / large-context multimodal models.
-             * @example 120
-             */
-            per_chunk_timeout_seconds?: number | null;
-            /**
-             * Max Entities Per Chunk
-             * @description Cap on entities the extractor accepts per chunk; default 32 if unset. Raise for entity-dense documents (legal / scientific).
-             * @example 64
-             */
-            max_entities_per_chunk?: number | null;
-            /**
-             * Max Relations Per Chunk
-             * @description Cap on relations the extractor accepts per chunk; default 32 if unset. Raise alongside max_entities for relation-dense docs.
-             * @example 64
-             */
-            max_relations_per_chunk?: number | null;
-            /**
-             * Graph Extraction Window Size
-             * @description Number of consecutive chunks to combine for one graph extraction LLM call; default 2 if unset (task #30 B3 sweet spot per earayu2 directive — Planetegg B2 full matrix shows window=2 cuts LLM calls 50% with ≤0.07 entity drop and +0.028 relation lift cross-model). Values above 1 only affect the graph index. Override per-collection: 1 for legacy/quality-priority, 5 for strong-model experiment (Gemini 2.5 Flash showed entity 0.947 at window=5).
-             * @example 2
-             */
-            graph_extraction_window_size?: number | null;
-            /**
-             * Graph Extraction Max Window Tokens
-             * @description Approximate maximum input tokens for one graph extraction window. If set, the window assembler starts a new window before this limit is exceeded.
-             * @example 2000
-             */
-            graph_extraction_max_window_tokens?: number | null;
-            /**
-             * Graph Extraction Max Prompt Tokens
-             * @description Defensive ceiling on the rendered graph-extraction prompt size (chars, treated as a 1:1 token proxy). Default 32000 if unset — windows that would render past this ceiling are skipped + warned so an over-eager graph_extraction_window_size config does not silently truncate the LLM input on the smallest model in the matrix. Override per-collection when a provider has a larger context window (Claude 200k / GPT-4 128k).
-             * @example 16000
-             */
-            graph_extraction_max_prompt_tokens?: number | null;
-            /**
-             * Graph Extraction Few Shot Locale
-             * @description Few-shot example locale for the graph extraction prompt. Default off (None) — enables the few-shot examples in the prompt template only when explicitly configured. Supported values: 'zh' (Chinese single-chunk example), 'en' (English single-chunk example), 'cross_chunk' (cross-chunk relation example). Adds ~400 prompt tokens when enabled.
-             * @example zh
-             */
-            graph_extraction_few_shot_locale?: string | null;
-        };
-        /** Login */
-        Login: {
-            /**
-             * Username
-             * @description The username of the user
-             */
-            username?: string | null;
-            /**
-             * Password
-             * @description The password of the user
-             */
-            password?: string | null;
-        };
-        /** Logto */
-        Logto: {
-            /** Auth Domain */
-            auth_domain?: string | null;
-            /** Auth App Id */
-            auth_app_id?: string | null;
-        };
-        /**
-         * MergeSuggestionsRequest
-         * @description Start a new graph-curation analysis run.
-         */
-        MergeSuggestionsRequest: Record<string, never>;
-        /**
-         * MergeSuggestionsResponse
-         * @description Latest persisted graph-curation run and its suggestions.
-         */
-        MergeSuggestionsResponse: {
-            /** @description Latest graph-curation run for this collection, if any */
-            run?: components["schemas"]["GraphCurationRunSummary"] | null;
-            /**
-             * Suggestions
-             * @description Suggestions from the latest run, ordered by confidence score
-             */
-            suggestions: components["schemas"]["GraphMergeSuggestionItem"][];
-        };
-        /**
-         * MergeSuggestionsRunResponse
-         * @description Response returned when starting a graph-curation run.
-         */
-        MergeSuggestionsRunResponse: {
-            run: components["schemas"]["GraphCurationRunSummary"];
-            /**
-             * Started
-             * @description Whether a new run was actually scheduled
-             * @example true
-             */
-            started: boolean;
-            /**
-             * Message
-             * @description Human-readable status message
-             * @example Graph curation run started
-             */
-            message: string;
-        };
-        /**
-         * MineruTokenTestRequest
-         * @description Request body for POST /collections/test-mineru-token.
-         */
-        MineruTokenTestRequest: {
-            /**
-             * Token
-             * @description MinerU API token to validate
-             */
-            token: string;
-        };
-        /**
-         * MineruTokenTestResponse
-         * @description Response envelope for POST /collections/test-mineru-token.
-         *
-         *     `status_code` is the HTTP status returned by MinerU's upstream test endpoint;
-         *     `data` is the passthrough body echoed to the caller.
-         */
-        MineruTokenTestResponse: {
-            /**
-             * Status Code
-             * @description HTTP status code returned by MinerU upstream
-             */
-            status_code: number;
-            /**
-             * Data
-             * @description Passthrough body from MinerU upstream
-             */
-            data?: {
-                [key: string]: unknown;
-            };
-        };
-        /** Model */
-        Model: {
-            /** Id */
-            id?: string | null;
-            /** Account Id */
-            account_id: string;
-            /** Provider Model Id */
-            provider_model_id: string;
-            /** Display Name */
-            display_name: string;
-            capability: components["schemas"]["ModelCapability"];
-            /** Runner Type */
-            runner_type: string;
-            /** Runner Config */
-            runner_config?: {
-                [key: string]: unknown;
-            };
-            /** Context Window */
-            context_window?: number | null;
-            /** Max Input Tokens */
-            max_input_tokens?: number | null;
-            /** Max Output Tokens */
-            max_output_tokens?: number | null;
-            /** Embedding Dimensions */
-            embedding_dimensions?: number | null;
-            /**
-             * Supports Vision
-             * @default false
-             */
-            supports_vision: boolean;
-            /**
-             * Supports Tool Calling
-             * @default false
-             */
-            supports_tool_calling: boolean;
-            /**
-             * Supports Multimodal Embedding
-             * @default false
-             */
-            supports_multimodal_embedding: boolean;
-            /**
-             * Status
-             * @default ACTIVE
-             * @enum {string}
-             */
-            status: "ACTIVE" | "INACTIVE";
-            /** Allowed Scenarios */
-            allowed_scenarios?: components["schemas"]["ModelUseScenario"][];
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** ModelAccount */
-        ModelAccount: {
-            /** Id */
-            id?: string | null;
-            /** User Id */
-            user_id?: string | null;
-            /** Provider Type */
-            provider_type: string;
-            /** Name */
-            name: string;
-            /** Display Name */
-            display_name: string;
-            /** Base Url */
-            base_url: string;
-            /**
-             * Status
-             * @default ACTIVE
-             * @enum {string}
-             */
-            status: "ACTIVE" | "INACTIVE";
-            /** Auth Config */
-            auth_config?: {
-                [key: string]: unknown;
-            };
-            /** Last Validated At */
-            last_validated_at?: string | null;
-            /** Validation Error */
-            validation_error?: string | null;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** ModelAccountCreate */
-        ModelAccountCreate: {
-            /** Provider Type */
-            provider_type: string;
-            /** Name */
-            name: string;
-            /** Display Name */
-            display_name: string;
-            /** Base Url */
-            base_url: string;
-            /** Api Key */
-            api_key: string;
-            /** Auth Config */
-            auth_config?: {
-                [key: string]: unknown;
-            };
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ModelAccountList */
-        ModelAccountList: {
-            /** Items */
-            items?: components["schemas"]["ModelAccount"][];
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** ModelAccountUpdate */
-        ModelAccountUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Display Name */
-            display_name?: string | null;
-            /** Base Url */
-            base_url?: string | null;
-            /** Api Key */
-            api_key?: string | null;
-            /** Auth Config */
-            auth_config?: {
-                [key: string]: unknown;
-            } | null;
-            /** Status */
-            status?: ("ACTIVE" | "INACTIVE") | null;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * ModelCapability
-         * @enum {string}
-         */
-        ModelCapability: "chat" | "completion" | "embedding";
-        /** ModelCreate */
-        ModelCreate: {
-            /** Account Id */
-            account_id: string;
-            /** Provider Model Id */
-            provider_model_id: string;
-            /** Display Name */
-            display_name: string;
-            capability: components["schemas"]["ModelCapability"];
-            /** Runner Type */
-            runner_type?: string | null;
-            /** Runner Config */
-            runner_config?: {
-                [key: string]: unknown;
-            };
-            /** Context Window */
-            context_window?: number | null;
-            /** Max Input Tokens */
-            max_input_tokens?: number | null;
-            /** Max Output Tokens */
-            max_output_tokens?: number | null;
-            /** Embedding Dimensions */
-            embedding_dimensions?: number | null;
-            /**
-             * Supports Vision
-             * @default false
-             */
-            supports_vision: boolean;
-            /**
-             * Supports Tool Calling
-             * @default false
-             */
-            supports_tool_calling: boolean;
-            /**
-             * Supports Multimodal Embedding
-             * @default false
-             */
-            supports_multimodal_embedding: boolean;
-            /** Allowed Scenarios */
-            allowed_scenarios?: components["schemas"]["ModelUseScenario"][] | null;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ModelList */
-        ModelList: {
-            /** Items */
-            items?: components["schemas"]["Model"][];
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** ModelProvider */
-        ModelProvider: {
-            /** Id */
-            id?: string | null;
-            /** Provider Type */
-            provider_type: string;
-            /** Display Name */
-            display_name: string;
-            /** Description */
-            description?: string | null;
-            /** Supported Capabilities */
-            supported_capabilities?: components["schemas"]["ModelCapability"][];
-            /** Account Schema */
-            account_schema?: {
-                [key: string]: unknown;
-            };
-            /** Default Base Url */
-            default_base_url?: string | null;
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /**
-             * Sort Order
-             * @default 0
-             */
-            sort_order: number;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** ModelProviderList */
-        ModelProviderList: {
-            /** Items */
-            items?: components["schemas"]["ModelProvider"][];
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /**
-         * ModelSpec
-         * @description Inline model spec embedded in collection / bot config blobs.
-         *
-         *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
-         *     (collections / bots already in the DB, plus any external clients
-         *     that hand-build the JSON) wrote ``{model, model_service_provider,
-         *     custom_llm_provider}`` instead. Pydantic silently dropped those
-         *     extras after the schema cut, so existing rows would parse with
-         *     ``model_id=None`` and the runtime resolver would 404. Per Weston
-         *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
-         *     legacy triple is present, it is stashed on the private
-         *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
-         *     runtime resolves it to a real ``model_id`` (see
-         *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
-         */
-        "ModelSpec-Input": {
-            /**
-             * Model Id
-             * @description ApeRAG model id to use
-             * @example mdl_default_chat
-             */
-            model_id?: string | null;
-            /**
-             * Temperature
-             * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
-             * @default 0.1
-             * @example 0.1
-             */
-            temperature: number | null;
-            /**
-             * Max Tokens
-             * @description Maximum number of tokens to generate
-             * @example 4096
-             */
-            max_tokens?: number | null;
-            /**
-             * Max Completion Tokens
-             * @description Upper bound for generated completion tokens, including visible and reasoning tokens
-             * @example 4096
-             */
-            max_completion_tokens?: number | null;
-            /**
-             * Timeout
-             * @description Maximum execution time in seconds for the API request
-             */
-            timeout?: number | null;
-            /**
-             * Top N
-             * @description Number of top results to return
-             */
-            top_n?: number | null;
-            /**
-             * Tags
-             * @description Tags for model categorization
-             * @default []
-             * @example [
-             *       "free",
-             *       "recommend"
-             *     ]
-             */
-            tags: string[] | null;
-            /** Legacy Model */
-            legacy_model?: string | null;
-            /** Legacy Provider */
-            legacy_provider?: string | null;
-            /** Legacy Custom Llm Provider */
-            legacy_custom_llm_provider?: string | null;
-        };
-        /**
-         * ModelSpec
-         * @description Inline model spec embedded in collection / bot config blobs.
-         *
-         *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
-         *     (collections / bots already in the DB, plus any external clients
-         *     that hand-build the JSON) wrote ``{model, model_service_provider,
-         *     custom_llm_provider}`` instead. Pydantic silently dropped those
-         *     extras after the schema cut, so existing rows would parse with
-         *     ``model_id=None`` and the runtime resolver would 404. Per Weston
-         *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
-         *     legacy triple is present, it is stashed on the private
-         *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
-         *     runtime resolves it to a real ``model_id`` (see
-         *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
-         */
-        "ModelSpec-Output": {
-            /**
-             * Model Id
-             * @description ApeRAG model id to use
-             * @example mdl_default_chat
-             */
-            model_id?: string | null;
-            /**
-             * Temperature
-             * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
-             * @default 0.1
-             * @example 0.1
-             */
-            temperature: number | null;
-            /**
-             * Max Tokens
-             * @description Maximum number of tokens to generate
-             * @example 4096
-             */
-            max_tokens?: number | null;
-            /**
-             * Max Completion Tokens
-             * @description Upper bound for generated completion tokens, including visible and reasoning tokens
-             * @example 4096
-             */
-            max_completion_tokens?: number | null;
-            /**
-             * Timeout
-             * @description Maximum execution time in seconds for the API request
-             */
-            timeout?: number | null;
-            /**
-             * Top N
-             * @description Number of top results to return
-             */
-            top_n?: number | null;
-            /**
-             * Tags
-             * @description Tags for model categorization
-             * @default []
-             * @example [
-             *       "free",
-             *       "recommend"
-             *     ]
-             */
-            tags: string[] | null;
-        };
-        /** ModelUpdate */
-        ModelUpdate: {
-            /** Display Name */
-            display_name?: string | null;
-            capability?: components["schemas"]["ModelCapability"] | null;
-            /** Runner Type */
-            runner_type?: string | null;
-            /** Runner Config */
-            runner_config?: {
-                [key: string]: unknown;
-            } | null;
-            /** Context Window */
-            context_window?: number | null;
-            /** Max Input Tokens */
-            max_input_tokens?: number | null;
-            /** Max Output Tokens */
-            max_output_tokens?: number | null;
-            /** Embedding Dimensions */
-            embedding_dimensions?: number | null;
-            /** Supports Vision */
-            supports_vision?: boolean | null;
-            /** Supports Tool Calling */
-            supports_tool_calling?: boolean | null;
-            /** Supports Multimodal Embedding */
-            supports_multimodal_embedding?: boolean | null;
-            /** Status */
-            status?: ("ACTIVE" | "INACTIVE") | null;
-            /** Allowed Scenarios */
-            allowed_scenarios?: components["schemas"]["ModelUseScenario"][] | null;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** ModelUse */
-        ModelUse: {
-            /** Id */
-            id?: string | null;
-            /** User Id */
-            user_id?: string | null;
-            scenario: components["schemas"]["ModelUseScenario"];
-            capability: components["schemas"]["ModelCapability"];
-            /** @default single */
-            strategy: components["schemas"]["ModelUseStrategy"];
-            /** Primary Model Id */
-            primary_model_id?: string | null;
-            /** Fallback Model Ids */
-            fallback_model_ids?: string[];
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** ModelUseList */
-        ModelUseList: {
-            /** Items */
-            items?: components["schemas"]["ModelUse"][];
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /**
-         * ModelUseScenario
-         * @enum {string}
-         */
-        ModelUseScenario: "agent_chat" | "collection_completion" | "collection_embedding" | "background_task";
-        /**
-         * ModelUseStrategy
-         * @enum {string}
-         */
-        ModelUseStrategy: "single" | "fallback";
-        /** ModelUseUpdate */
-        ModelUseUpdate: {
-            /** Primary Model Id */
-            primary_model_id?: string | null;
-            /** Fallback Model Ids */
-            fallback_model_ids?: string[];
-            /** @default single */
-            strategy: components["schemas"]["ModelUseStrategy"];
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /** Extra */
-            extra?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ModelValidationResponse */
-        ModelValidationResponse: {
-            /** Ok */
-            ok: boolean;
-            /** Message */
-            message?: string | null;
-        };
-        /** OpenAIChatCompletionChoice */
-        OpenAIChatCompletionChoice: {
-            /** Index */
-            index: number;
-            message: components["schemas"]["OpenAIChatCompletionMessage"];
-            /** Finish Reason */
-            finish_reason?: string | null;
-        };
-        /** OpenAIChatCompletionMessage */
-        OpenAIChatCompletionMessage: {
-            /**
-             * Role
-             * @constant
-             */
-            role: "assistant";
-            /** Content */
-            content: string;
-        };
-        /** OpenAIChatCompletionResponse */
-        OpenAIChatCompletionResponse: {
-            /** Id */
-            id: string;
-            /**
-             * Object
-             * @constant
-             */
-            object: "chat.completion";
-            /** Created */
-            created: number;
-            /** Model */
-            model: string;
-            /** Choices */
-            choices: components["schemas"]["OpenAIChatCompletionChoice"][];
-            usage: components["schemas"]["OpenAIChatCompletionUsage"];
-        };
-        /** OpenAIChatCompletionUsage */
-        OpenAIChatCompletionUsage: {
-            /** Prompt Tokens */
-            prompt_tokens: number;
-            /** Completion Tokens */
-            completion_tokens: number;
-            /** Total Tokens */
-            total_tokens: number;
-        };
-        /** OpenAIErrorDetail */
-        OpenAIErrorDetail: {
-            /** Message */
-            message: string;
-            /** Type */
-            type: string;
-            /** Code */
-            code: string;
-        };
-        /** OpenAIErrorResponse */
-        OpenAIErrorResponse: {
-            error: components["schemas"]["OpenAIErrorDetail"];
-        };
-        /** PageLocation */
-        PageLocation: {
-            /**
-             * Type
-             * @default page_location
-             * @constant
-             */
-            type: "page_location";
-            /** Doc Index */
-            doc_index: number;
-            /** Doc Title */
-            doc_title?: string | null;
-            /** Page Index */
-            page_index: number;
-        };
-        /**
-         * PageResult
-         * @description PageResult info (deprecated, use paginatedResponse instead)
-         */
-        PageResult: {
-            /**
-             * Page Number
-             * @description The page number
-             */
-            page_number?: number | null;
-            /**
-             * Page Size
-             * @description The page size
-             */
-            page_size?: number | null;
-            /**
-             * Count
-             * @description The total count of items
-             */
-            count?: number | null;
-        };
-        /** ParserHealthItem */
-        ParserHealthItem: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "ok" | "warning" | "error" | "disabled";
-            /** Detail */
-            detail: string;
-        };
-        /** ParserHealthReport */
-        ParserHealthReport: {
-            /** Default Parser */
-            default_parser: string;
-            /** Parser Order */
-            parser_order?: string[];
-            /** Available Extensions */
-            available_extensions?: string[];
-            /** Dependencies */
-            dependencies?: components["schemas"]["ParserHealthItem"][];
-            /** Services */
-            services?: components["schemas"]["ParserHealthItem"][];
-            /** Support Tiers */
-            support_tiers?: components["schemas"]["ParserSupportTier"][];
-            /** Warnings */
-            warnings?: string[];
-            /** Recommendations */
-            recommendations?: string[];
-        };
-        /** ParserSupportTier */
-        ParserSupportTier: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Category
-             * @enum {string}
-             */
-            category: "official" | "conditional" | "enhanced" | "optional";
-            /** Parser */
-            parser: string;
-            /** Formats */
-            formats?: string[];
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "available" | "limited" | "unavailable" | "disabled";
-            /** Detail */
-            detail: string;
-            /** Requirements */
-            requirements?: string[];
-        };
-        /** PreviewRequest */
-        PreviewRequest: {
-            /** Template */
-            template: string;
-            /** Variables */
-            variables?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** PromptsPayload */
-        PromptsPayload: {
-            /**
-             * Agent System
-             * @description Agent system prompt (persona definition)
-             */
-            agent_system?: string | null;
-            /**
-             * Agent Query
-             * @description Agent query prompt template
-             */
-            agent_query?: string | null;
-            /**
-             * Index Graph
-             * @description Graph index prompt for entity/relation extraction
-             */
-            index_graph?: string | null;
-            /**
-             * Index Summary
-             * @description Summary index prompt for document summarization
-             */
-            index_summary?: string | null;
-            /**
-             * Index Vision
-             * @description Vision index prompt for image content extraction
-             */
-            index_vision?: string | null;
-        };
-        /**
-         * QuotaInfo
-         * @description Quota information for a specific quota type
-         */
-        QuotaInfo: {
-            /**
-             * Quota Type
-             * @description Type of quota
-             * @example max_collection_count
-             */
-            quota_type: string;
-            /**
-             * Quota Limit
-             * @description Maximum allowed usage
-             * @example 10
-             */
-            quota_limit: number;
-            /**
-             * Current Usage
-             * @description Current usage count
-             * @example 3
-             */
-            current_usage: number;
-            /**
-             * Remaining
-             * @description Remaining quota available
-             * @example 7
-             */
-            remaining: number;
-        };
-        /**
-         * QuotaUpdateRequest
-         * @description Request to update user quotas (supports both single and batch updates)
-         */
-        QuotaUpdateRequest: {
-            /**
-             * Max Collection Count
-             * @description New limit for collection count
-             */
-            max_collection_count?: number | null;
-            /**
-             * Max Document Count
-             * @description New limit for document count
-             */
-            max_document_count?: number | null;
-            /**
-             * Max Document Count Per Collection
-             * @description New limit for documents per collection
-             */
-            max_document_count_per_collection?: number | null;
-            /**
-             * Max Bot Count
-             * @description New limit for bot count
-             */
-            max_bot_count?: number | null;
-        };
-        /**
-         * QuotaUpdateResponse
-         * @description Response after updating user quotas (supports both single and batch updates)
-         */
-        QuotaUpdateResponse: {
-            /**
-             * Success
-             * @description Whether the update was successful
-             * @example true
-             */
-            success: boolean;
-            /**
-             * Message
-             * @description Status message
-             * @example Quotas updated successfully
-             */
-            message: string;
-            /**
-             * User Id
-             * @description User ID that was updated
-             * @example user123
-             */
-            user_id: string;
-            /**
-             * Updated Quotas
-             * @description List of updated quotas
-             */
-            updated_quotas: components["schemas"]["UpdatedQuota"][];
-        };
-        /**
-         * ReasoningPart
-         * @description Persisted multi-step reasoning text the model emitted between
-         *     tool calls — the "how the agent got there" trace, distinct from
-         *     :class:`TextPart` (final answer body).
-         *
-         *     Architect ratify msg=2639aeea: separate first-class type vs reusing
-         *     ``TextPart`` with a ``role`` meta field. Keeping reasoning as its
-         *     own type makes downstream serialisation / aggregation / UI
-         *     rendering unambiguous (a reader can tell "this is reasoning" vs
-         *     "this is the final answer" by ``type`` alone).
-         *
-         *     ``transient=False`` (default) so reasoning survives reload — Wave 8
-         *     D8.6 chunk-3 design originally pinned reasoning as fully transient
-         *     via :class:`DataActivityPart`, but earayu2 explicitly asked for
-         *     Claude-style chronological timeline (思考1 → 工具a → 思考2 → 工具b
-         *     → 最终回答) so persistence is the canonical user-priority amend.
-         *
-         *     Length cap: ``MAX_REASONING_PART_CHARS`` per part — the runtime
-         *     opens a new ReasoningPart when the buffer fills OR when a tool
-         *     call interrupts, giving the chronological chunking the FE renders
-         *     as discrete thinking blocks interleaved with tool actions.
-         */
-        ReasoningPart: {
-            /**
-             * Type
-             * @default reasoning
-             * @constant
-             */
-            type: "reasoning";
-            /** Text */
-            text: string;
-        };
-        /** RebuildIndexesRequest */
-        RebuildIndexesRequest: {
-            /**
-             * Index Types
-             * @description Types of indexes to rebuild
-             */
-            index_types: ("VECTOR" | "FULLTEXT" | "GRAPH" | "SUMMARY" | "VISION")[];
-        };
-        /** RebuildIndexesResponse */
-        RebuildIndexesResponse: {
-            /**
-             * Code
-             * @description Result code
-             * @example 200
-             */
-            code: string;
-            /**
-             * Message
-             * @description Human-readable rebuild status
-             */
-            message: string;
-            /**
-             * Affected Documents
-             * @description Number of documents affected by a collection-level rebuild
-             */
-            affected_documents?: number | null;
-        };
-        /**
-         * Register
-         * @description The email of the user
-         */
-        Register: {
-            /**
-             * Token
-             * @description The invitation token
-             */
-            token?: string | null;
-            /**
-             * Email
-             * @description The email of the user
-             */
-            email?: string | null;
-            /**
-             * Username
-             * @description The username of the user
-             */
-            username?: string | null;
-            /**
-             * Password
-             * @description The password of the user
-             */
-            password?: string | null;
-        };
-        /** ResetPromptsRequest */
-        ResetPromptsRequest: {
-            /**
-             * Types
-             * @description Prompt types to reset, omit to reset all
-             */
-            types?: string[] | null;
-        };
-        /**
-         * SearchRequest
-         * @description Search request
-         */
-        SearchRequest: {
-            /** Query */
-            query?: string | null;
-            vector_search?: components["schemas"]["VectorSearchParams"] | null;
-            fulltext_search?: components["schemas"]["FulltextSearchParams"] | null;
-            graph_search?: components["schemas"]["GraphSearchParams"] | null;
-            summary_search?: components["schemas"]["SummarySearchParams"] | null;
-            vision_search?: components["schemas"]["VisionSearchParams"] | null;
-            /**
-             * Save To History
-             * @description Whether to save search result to database history
-             * @default false
-             * @example true
-             */
-            save_to_history: boolean | null;
-        };
-        /** SearchResult */
-        SearchResult: {
-            /**
-             * Id
-             * @description The id of the search result
-             */
-            id?: string | null;
-            /** Query */
-            query?: string | null;
-            vector_search?: components["schemas"]["VectorSearchParams"] | null;
-            fulltext_search?: components["schemas"]["FulltextSearchParams"] | null;
-            graph_search?: components["schemas"]["GraphSearchParams"] | null;
-            summary_search?: components["schemas"]["SummarySearchParams"] | null;
-            vision_search?: components["schemas"]["VisionSearchParams"] | null;
-            /** Items */
-            items?: components["schemas"]["SearchResultItem"][] | null;
-            /**
-             * Created
-             * @description The creation time of the search result
-             */
-            created?: string | null;
-        };
-        /** SearchResultItem */
-        SearchResultItem: {
-            /**
-             * Rank
-             * @description Result rank
-             */
-            rank?: number | null;
-            /**
-             * Score
-             * @description Result score
-             */
-            score?: number | null;
-            /**
-             * Content
-             * @description Result content
-             */
-            content?: string | null;
-            /**
-             * Source
-             * @description Source document or metadata
-             */
-            source?: string | null;
-            /**
-             * Recall Type
-             * @description Recall type
-             */
-            recall_type?: ("vector_search" | "graph_search" | "fulltext_search" | "summary_search" | "vision_search") | null;
-            /** @description Public metadata of the result */
-            metadata?: components["schemas"]["SearchResultMetadata"] | null;
-        };
-        /**
-         * SearchResultList
-         * @description A list of search results
-         */
-        SearchResultList: {
-            /** Items */
-            items?: components["schemas"]["SearchResult"][] | null;
-        };
-        /**
-         * SearchResultMetadata
-         * @description Public metadata carried by search result items.
-         *
-         *     This intentionally allow-lists fields needed by clients and excludes raw
-         *     index/storage metadata such as indexer, index_method, chat_id, object_path,
-         *     and embedded node payloads.
-         */
-        SearchResultMetadata: {
-            /**
-             * Source
-             * @description Display source for the result
-             */
-            source?: string | null;
-            /**
-             * Title
-             * @description Human-readable title when available
-             */
-            title?: string | null;
-            /**
-             * Collection Id
-             * @description Collection identifier for client follow-up actions
-             */
-            collection_id?: string | null;
-            /**
-             * Document Id
-             * @description Document identifier for client follow-up actions
-             */
-            document_id?: string | null;
-            /**
-             * Chunk Id
-             * @description Indexing-layer chunk identifier for follow-up `read_document_chunk` calls (D10 §A.9 R1 LOCKED handle).
-             */
-            chunk_id?: string | null;
-            /**
-             * Section Path
-             * @description Slash-separated section path for follow-up `read_document_section` calls (D10 §A.9 R1 LOCKED handle).
-             */
-            section_path?: string | null;
-            /**
-             * Heading Anchor
-             * @description Slug-style heading anchor (e.g. '#chapter-2-implementation') alternative to section_path (D10 §A.9 R1 LOCKED handle).
-             */
-            heading_anchor?: string | null;
-            /**
-             * Asset Id
-             * @description Asset identifier for image or binary references
-             */
-            asset_id?: string | null;
-            /**
-             * Mimetype
-             * @description Asset MIME type when the result references an asset
-             */
-            mimetype?: string | null;
-            /**
-             * Page Idx
-             * @description Zero-based page index when available
-             */
-            page_idx?: number | null;
-            /**
-             * Url
-             * @description External source URL when available
-             */
-            url?: string | null;
-            /**
-             * Modality
-             * @description Public content modality
-             */
-            modality?: ("text" | "image") | null;
-            /**
-             * Parse Version
-             * @description Indexing-layer parse_version that produced this hit (§G.5). Lets agents detect mixed-version results across modalities in one response and reason about the §F.4 inconsistency window.
-             */
-            parse_version?: string | null;
-            /**
-             * Index Modality
-             * @description Indexer modality that served this hit (§G.5). Named ``index_modality`` to disambiguate from the D10.h-locked content-shape ``modality`` field above; the design pack §G.5 uses bare ``modality`` but the existing public surface already binds that name to the content shape.
-             */
-            index_modality?: ("vector" | "fulltext" | "graph" | "summary" | "vision") | null;
-            /**
-             * Index State Per Modality
-             * @description Per-modality index state for the document this hit belongs to (§G.5). Keys: ``vector`` / ``fulltext`` / ``graph`` / ``summary`` / ``vision``. Values: ``ACTIVE`` / ``FAILED`` / ``NOT_ENABLED`` / ``INDEXING``. Clients can skip a modality currently FAILED or decide whether to wait + retry vs proceed with partial coverage.
-             */
-            index_state_per_modality?: {
-                [key: string]: "ACTIVE" | "FAILED" | "NOT_ENABLED" | "INDEXING";
-            } | null;
-        };
-        /**
-         * Settings
-         * @description Knowledge-base parser settings request/response schema.
-         *
-         *     Carved here from ``aperag.schema.view_models.Settings`` in #48 (G2)
-         *     so the knowledge_base domain owns the shape directly and does not
-         *     depend on the legacy aggregate ``aperag.schema.view_models``.
-         */
-        Settings: {
-            /**
-             * Use Mineru
-             * @description Whether to use MinerU
-             */
-            use_mineru?: boolean | null;
-            /**
-             * Mineru Api Token
-             * @description API token for MinerU
-             */
-            mineru_api_token?: string | null;
-            /**
-             * Use Markitdown
-             * @description Whether to use MarkItDown
-             */
-            use_markitdown?: boolean | null;
-        };
-        /**
-         * SharedCollection
-         * @description Shared Collection information for marketplace users
-         */
-        SharedCollection: {
-            /**
-             * Id
-             * @description Collection ID
-             */
-            id: string;
-            /**
-             * Title
-             * @description Collection title
-             */
-            title: string;
-            /**
-             * Description
-             * @description Collection description
-             */
-            description?: string | null;
-            /**
-             * Owner User Id
-             * @description Original owner user ID
-             */
-            owner_user_id: string;
-            /**
-             * Owner Username
-             * @description Original owner username
-             */
-            owner_username?: string | null;
-            /**
-             * Subscription Id
-             * @description Subscription record ID (has value if subscribed, null if not subscribed)
-             */
-            subscription_id?: string | null;
-            /**
-             * Gmt Subscribed
-             * @description Subscription time (only has value when subscribed)
-             */
-            gmt_subscribed?: string | null;
-            /**
-             * Subscription Count
-             * @description Total number of subscriptions
-             */
-            subscription_count: number;
-            /** @description Collection configuration settings */
-            config: components["schemas"]["SharedCollectionConfig"];
-        };
-        /**
-         * SharedCollectionConfig
-         * @description Configuration settings for shared collection features
-         */
-        SharedCollectionConfig: {
-            /**
-             * Enable Vector
-             * @description Whether vector search is enabled
-             */
-            enable_vector: boolean;
-            /**
-             * Enable Fulltext
-             * @description Whether fulltext search is enabled
-             */
-            enable_fulltext: boolean;
-            /**
-             * Enable Knowledge Graph
-             * @description Whether knowledge graph is enabled
-             */
-            enable_knowledge_graph: boolean;
-            /**
-             * Enable Summary
-             * @description Whether summary generation is enabled
-             */
-            enable_summary: boolean;
-            /**
-             * Enable Vision
-             * @description Whether vision processing is enabled
-             */
-            enable_vision: boolean;
-        };
-        /**
-         * SharedCollectionList
-         * @description Shared Collection list response
-         */
-        SharedCollectionList: {
-            /**
-             * Items
-             * @description List of shared Collections
-             */
-            items: components["schemas"]["SharedCollection"][];
-            /**
-             * Total
-             * @description Total count (for pagination)
-             */
-            total: number;
-            /**
-             * Page
-             * @description Current page number
-             */
-            page: number;
-            /**
-             * Page Size
-             * @description Page size
-             */
-            page_size: number;
-        };
-        /**
-         * SharingStatusResponse
-         * @description Marketplace sharing status envelope for a KB collection.
-         *
-         *     Phase 4 may re-home this class to a marketplace schemas module when
-         *     that domain materializes; for now it lives in KB because the owning
-         *     route (``GET /collections/{id}/sharing``) is a KB route.
-         */
-        SharingStatusResponse: {
-            /**
-             * Is Published
-             * @description Whether published to marketplace
-             */
-            is_published: boolean;
-            /**
-             * Published At
-             * @description Publication time, null when not published
-             */
-            published_at?: string | null;
-        };
-        /** SourceDocumentPart */
-        SourceDocumentPart: {
-            /**
-             * Type
-             * @default source-document
-             * @constant
-             */
-            type: "source-document";
-            /** Sourceid */
-            sourceId: string;
-            /** Mediatype */
-            mediaType: string;
-            /** Title */
-            title: string;
-        };
-        /** SourceUrlPart */
-        SourceUrlPart: {
-            /**
-             * Type
-             * @default source-url
-             * @constant
-             */
-            type: "source-url";
-            /** Sourceid */
-            sourceId: string;
-            /** Url */
-            url: string;
-            /** Title */
-            title?: string | null;
-        };
-        /** StagedDocumentsResponse */
-        StagedDocumentsResponse: {
-            /**
-             * Documents
-             * @description List of staged (UPLOADED) documents awaiting confirmation
-             */
-            documents: components["schemas"]["UploadDocumentResponse"][];
-            /**
-             * Total
-             * @description Total number of staged documents
-             */
-            total: number;
-        };
-        /**
-         * SuggestionActionMergeResult
-         * @description Merge result returned when accepting a graph-curation suggestion.
-         */
-        SuggestionActionMergeResult: {
-            /**
-             * Target Entity Id
-             * @description Surviving entity ID after merge
-             * @example e_moxiangju
-             */
-            target_entity_id: string;
-            /**
-             * Merged Source Ids
-             * @description Merged-away entity IDs
-             * @example [
-             *       "e_old_bookstore"
-             *     ]
-             */
-            merged_source_ids: string[];
-            /**
-             * Description
-             * @description Merged description of the surviving entity
-             */
-            description: string;
-            /**
-             * Source Chunk Ids
-             * @description Source chunk IDs preserved on the surviving entity
-             * @example [
-             *       "chunk_1",
-             *       "chunk_8"
-             *     ]
-             */
-            source_chunk_ids: string[];
-            /**
-             * Edges Redirected
-             * @description Number of redirected edges
-             * @example 5
-             */
-            edges_redirected: number;
-            /**
-             * Edges Collapsed
-             * @description Number of duplicate edges collapsed
-             * @example 2
-             */
-            edges_collapsed: number;
-        };
-        /**
-         * SuggestionActionRequest
-         * @description Request to take action on a merge suggestion
-         */
-        SuggestionActionRequest: {
-            /**
-             * Action
-             * @description Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')
-             * @example accept
-             * @enum {string}
-             */
-            action: "accept" | "reject";
-        };
-        /**
-         * SuggestionActionResponse
-         * @description Response containing suggestion action results
-         */
-        SuggestionActionResponse: {
-            /**
-             * Status
-             * @description Status of the action operation
-             * @example success
-             * @enum {string}
-             */
-            status: "success" | "error";
-            /**
-             * Message
-             * @description Detailed message about the action operation
-             * @example Suggestion msug123 has been accepted and merge completed
-             */
-            message: string;
-            /**
-             * Suggestion Id
-             * @description The suggestion ID that was processed
-             * @example msug123
-             */
-            suggestion_id: string;
-            /**
-             * Action
-             * @description The action that was performed (normalized to lowercase)
-             * @example accept
-             * @enum {string}
-             */
-            action: "accept" | "reject";
-            /**
-             * Suggestion Status
-             * @description Suggestion status after action processing
-             * @example ACCEPTED
-             * @enum {string}
-             */
-            suggestion_status: "PENDING" | "APPLY_PENDING" | "APPLYING" | "APPLIED" | "APPLY_FAILED" | "ACCEPTED" | "REJECTED" | "DISMISSED" | "EXPIRED" | "SUPERSEDED";
-            /** @description Merge operation result (only present when action is 'accept') */
-            merge_result?: components["schemas"]["SuggestionActionMergeResult"] | null;
-        };
-        /** SummarySearchParams */
-        SummarySearchParams: {
-            /**
-             * Topk
-             * @description Top K results
-             */
-            topk?: number | null;
-            /**
-             * Similarity
-             * @description Similarity threshold
-             */
-            similarity?: number | null;
-        };
-        /**
-         * SystemDefaultQuotas
-         * @description System default quota configuration
-         */
-        SystemDefaultQuotas: {
-            /**
-             * Max Collection Count
-             * @description Default maximum collection count
-             * @example 20
-             */
-            max_collection_count: number;
-            /**
-             * Max Document Count
-             * @description Default maximum document count
-             * @example 4000
-             */
-            max_document_count: number;
-            /**
-             * Max Document Count Per Collection
-             * @description Default maximum documents per collection
-             * @example 200
-             */
-            max_document_count_per_collection: number;
-            /**
-             * Max Bot Count
-             * @description Default maximum bot count
-             * @example 10
-             */
-            max_bot_count: number;
-        };
-        /**
-         * SystemDefaultQuotasResponse
-         * @description Response containing system default quotas
-         */
-        SystemDefaultQuotasResponse: {
-            quotas: components["schemas"]["SystemDefaultQuotas"];
-        };
-        /**
-         * SystemDefaultQuotasUpdateRequest
-         * @description Request to update system default quotas
-         */
-        SystemDefaultQuotasUpdateRequest: {
-            quotas: components["schemas"]["SystemDefaultQuotas"];
-        };
-        /**
-         * SystemDefaultQuotasUpdateResponse
-         * @description Response after updating system default quotas
-         */
-        SystemDefaultQuotasUpdateResponse: {
-            /**
-             * Success
-             * @description Whether the update was successful
-             * @example true
-             */
-            success: boolean;
-            /**
-             * Message
-             * @description Status message
-             * @example System default quotas updated successfully
-             */
-            message: string;
-            quotas: components["schemas"]["SystemDefaultQuotas"];
-        };
-        /**
-         * TextPart
-         * @description Plain assistant / user text content.
-         */
-        TextPart: {
-            /**
-             * Type
-             * @default text
-             * @constant
-             */
-            type: "text";
-            /** Text */
-            text: string;
-        };
-        /** TitleGenerateRequest */
-        TitleGenerateRequest: {
-            /**
-             * Max Length
-             * @description Maximum length of the generated title
-             * @default 20
-             */
-            max_length: number | null;
-            /**
-             * Language
-             * @description Language for the title generation (IETF BCP 47 tag)
-             * @default zh-CN
-             */
-            language: ("zh-CN" | "en-US" | "ja-JP" | "ko-KR") | null;
-            /**
-             * Turns
-             * @description Number of most recent conversation turns to consider
-             * @default 1
-             */
-            turns: number | null;
-        };
-        /** TitleGenerateResponse */
-        TitleGenerateResponse: {
-            /**
-             * Title
-             * @description Generated title string
-             */
-            title: string;
-        };
-        /** ToolConsentData */
-        ToolConsentData: {
-            /** Toolcallid */
-            toolCallId: string;
-            /** Toolname */
-            toolName: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Argspreview */
-            argsPreview: string;
-            /** Argshash */
-            argsHash: string;
-            /**
-             * Risk
-             * @enum {string}
-             */
-            risk: "writes_user_data" | "calls_external_api" | "modifies_system" | "admin_only";
-            /** Requestedat */
-            requestedAt: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "pending" | "approved" | "denied" | "expired";
-        };
-        /**
-         * ToolPart
-         * @description AI SDK v5 consolidated tool-call part (D8 §2.4 / D9 §A1+§A6).
-         *
-         *     The ``type`` discriminator carries the ``SafeToolName`` directly
-         *     (e.g. ``tool-aperag_knowledge_base_search_collection``); MCP server /
-         *     tool identity lives in ``metadata``. This matches the AI SDK v5
-         *     *at-rest* shape (one consolidated tool part per call, lifecycle
-         *     captured in ``state``) — not the *wire* shape, which is a sequence
-         *     of ``tool-input-*`` / ``tool-output-*`` events emitted by #73 and
-         *     collapsed by the FE consumer into this consolidated form.
-         *
-         *     SafeToolName resolution (raw MCP name → ``tool-<safeName>``) is
-         *     #75's responsibility (``aperag.domains.agent_runtime.tools``);
-         *     storage only enforces that the caller has already produced a
-         *     canonical ``type`` string.
-         */
-        ToolPart: {
-            /** Type */
-            type: string;
-            /** Toolcallid */
-            toolCallId: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "input-streaming" | "input-available" | "output-available" | "output-error";
-            /** Input */
-            input?: unknown | null;
-            /** Output */
-            output?: unknown | null;
-            /** Errortext */
-            errorText?: string | null;
-            /** Summary */
-            summary?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-        };
-        /** TurnFeedback */
-        TurnFeedback: {
-            /** Turn Id */
-            turn_id: string;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "good" | "bad";
-            /** Tag */
-            tag?: ("Harmful" | "Unsafe" | "Fake" | "Unhelpful" | "Other") | null;
-            /** Message */
-            message?: string | null;
-            /** Created */
-            created?: string | null;
-            /** Updated */
-            updated?: string | null;
-        };
-        /** TurnFeedbackList */
-        TurnFeedbackList: {
-            /** Items */
-            items: components["schemas"]["TurnFeedback"][];
-        };
-        /** UpdateUserPromptsRequest */
-        UpdateUserPromptsRequest: {
-            /** @description Prompts to update (only provided fields will be updated) */
-            prompts: components["schemas"]["PromptsPayload"];
-        };
-        /** UpdatedQuota */
-        UpdatedQuota: {
-            /**
-             * Quota Type
-             * @description Type of quota that was updated
-             * @example max_collection_count
-             */
-            quota_type: string;
-            /**
-             * Old Limit
-             * @description Previous quota limit
-             * @example 10
-             */
-            old_limit: number;
-            /**
-             * New Limit
-             * @description New quota limit
-             * @example 20
-             */
-            new_limit: number;
-        };
-        /** UploadDocumentResponse */
-        UploadDocumentResponse: {
-            /**
-             * Document Id
-             * @description ID of the uploaded document
-             */
-            document_id: string;
-            /**
-             * Filename
-             * @description Name of the uploaded file
-             */
-            filename: string;
-            /**
-             * Size
-             * @description Size of the uploaded file in bytes
-             */
-            size: number;
-            /**
-             * Status
-             * @description Status of the document (UPLOADED for new uploads, or existing status for duplicate files)
-             * @enum {string}
-             */
-            status: "UPLOADED" | "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "DELETED" | "EXPIRED";
-        };
-        /** UrlCitationLocation */
-        UrlCitationLocation: {
-            /**
-             * Type
-             * @default url_citation
-             * @constant
-             */
-            type: "url_citation";
-            /** Url */
-            url: string;
-            /** Title */
-            title?: string | null;
-        };
-        /** User */
-        User: {
-            /**
-             * Id
-             * @description The ID of the user
-             */
-            id?: string | null;
-            /**
-             * Username
-             * @description The username of the user
-             */
-            username?: string | null;
-            /**
-             * Email
-             * @description The email of the user
-             */
-            email?: string | null;
-            /**
-             * Role
-             * @description The role of the user
-             */
-            role?: string | null;
-            /**
-             * Is Active
-             * @description Whether the user is active
-             */
-            is_active?: boolean | null;
-            /**
-             * Date Joined
-             * @description The date and time the user joined the system
-             */
-            date_joined?: string | null;
-            /**
-             * Registration Source
-             * @description The registration source of the user (local, google, github, etc.)
-             */
-            registration_source?: string | null;
-        };
-        /** UserActivityContext */
-        UserActivityContext: {
-            /** Source Name */
-            source_name?: string | null;
-            /** Keyword */
-            keyword?: string | null;
-            /** Count */
-            count?: number | null;
-            /** Target Type */
-            target_type?: ("knowledge_base" | "document" | "web") | null;
-            /** Scope Label */
-            scope_label?: string | null;
-        };
-        /** UserActivityEnvelope */
-        UserActivityEnvelope: {
-            intent: components["schemas"]["UserActivityIntent"];
-            /** Title Key */
-            title_key: string;
-            /** Subtitle Key */
-            subtitle_key: string;
-            /** Detail Key */
-            detail_key?: string | null;
-            context?: components["schemas"]["UserActivityContext"] | null;
-        };
-        /**
-         * UserActivityIntent
-         * @enum {string}
-         */
-        UserActivityIntent: "thinking" | "searching_knowledge" | "reading_source" | "comparing_results" | "writing_answer" | "waiting" | "completed" | "error";
-        /**
-         * UserList
-         * @description A list of users
-         */
-        UserList: {
-            /** Items */
-            items?: components["schemas"]["User"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /**
-         * UserQuotaInfo
-         * @description Complete quota information for a user
-         */
-        UserQuotaInfo: {
-            /**
-             * User Id
-             * @description User ID
-             * @example user123
-             */
-            user_id: string;
-            /**
-             * Username
-             * @description Username
-             * @example john_doe
-             */
-            username?: string | null;
-            /**
-             * Email
-             * @description User email
-             * @example john@example.com
-             */
-            email?: string | null;
-            /**
-             * Role
-             * @description User role
-             * @example rw
-             */
-            role: string;
-            /**
-             * Quotas
-             * @description List of quota information
-             */
-            quotas: components["schemas"]["QuotaInfo"][];
-        };
-        /**
-         * UserQuotaList
-         * @description List of user quota information (admin view)
-         */
-        UserQuotaList: {
-            /**
-             * Items
-             * @description List of user quota information
-             */
-            items: components["schemas"]["UserQuotaInfo"][];
-        };
-        /** ValidateRequest */
-        ValidateRequest: {
-            /** Type */
-            type: string;
-            /** Template */
-            template: string;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-        };
-        /** VectorSearchParams */
-        VectorSearchParams: {
-            /**
-             * Topk
-             * @description Top K results
-             */
-            topk?: number | null;
-            /**
-             * Similarity
-             * @description Similarity threshold
-             */
-            similarity?: number | null;
-        };
-        /** VisionChunk */
-        VisionChunk: {
-            /** Id */
-            id?: string | null;
-            /** Asset Id */
-            asset_id?: string | null;
-            /** Text */
-            text?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** VisionSearchParams */
-        VisionSearchParams: {
-            /**
-             * Topk
-             * @description Top K results
-             */
-            topk?: number | null;
-            /**
-             * Similarity
-             * @description Similarity threshold
-             */
-            similarity?: number | null;
-        };
-        /**
-         * WebReadRequest
-         * @description Web content reading request
-         */
-        WebReadRequest: {
-            /**
-             * Url List
-             * @description List of URLs to read (for single URL, use array with one element)
-             * @example [
-             *       "https://example.com/article"
-             *     ]
-             */
-            url_list: string[];
-            /**
-             * Timeout
-             * @description Request timeout in seconds
-             * @default 30
-             * @example 30
-             */
-            timeout: number | null;
-            /**
-             * Locale
-             * @description Browser locale
-             * @default en-US
-             * @example en-US
-             */
-            locale: string | null;
-            /**
-             * Max Concurrent
-             * @description Maximum concurrent requests for multiple URLs
-             * @default 3
-             * @example 3
-             */
-            max_concurrent: number | null;
-        };
-        /**
-         * WebReadResponse
-         * @description Web content reading response
-         */
-        WebReadResponse: {
-            /**
-             * Results
-             * @description List of reading results
-             */
-            results: components["schemas"]["WebReadResultItem"][];
-            /**
-             * Total Urls
-             * @description Total number of URLs processed
-             */
-            total_urls: number;
-            /**
-             * Successful
-             * @description Number of successful extractions
-             */
-            successful: number;
-            /**
-             * Failed
-             * @description Number of failed extractions
-             */
-            failed: number;
-            /**
-             * Processing Time
-             * @description Total processing time in seconds
-             */
-            processing_time?: number | null;
-        };
-        /**
-         * WebReadResultItem
-         * @description Individual web content reading result
-         */
-        WebReadResultItem: {
-            /**
-             * Url
-             * @description Requested URL
-             */
-            url: string;
-            /**
-             * Status
-             * @description Processing status
-             * @enum {string}
-             */
-            status: "success" | "error";
-            /**
-             * Title
-             * @description Page title
-             */
-            title?: string | null;
-            /**
-             * Content
-             * @description Extracted content in Markdown format
-             */
-            content?: string | null;
-            /**
-             * Extracted At
-             * @description Content extraction timestamp
-             */
-            extracted_at?: string | null;
-            /**
-             * Word Count
-             * @description Word count of content
-             */
-            word_count?: number | null;
-            /**
-             * Token Count
-             * @description Estimated token count
-             */
-            token_count?: number | null;
-            /**
-             * Error
-             * @description Error message if failed
-             */
-            error?: string | null;
-            /**
-             * Error Code
-             * @description Error code if failed
-             */
-            error_code?: string | null;
-        };
-        /**
-         * WebSearchMeta
-         * @description Lightweight execution diagnostics for web search.
-         */
-        WebSearchMeta: {
-            /**
-             * Search Status
-             * @description Overall search outcome: successful, empty, unavailable, or disabled.
-             * @example ok
-             * @enum {string}
-             */
-            search_status: "ok" | "empty" | "unavailable" | "disabled";
-            /**
-             * Provider Used
-             * @description Search providers attempted during this request.
-             * @example [
-             *       "jina",
-             *       "duckduckgo"
-             *     ]
-             */
-            provider_used?: string[];
-            /**
-             * Backend Used
-             * @description Concrete backend path used for this request when known.
-             * @example [
-             *       "duckduckgo:auto"
-             *     ]
-             */
-            backend_used?: string[];
-            /**
-             * Fallback Used
-             * @description Whether the request had to fall back from its preferred path.
-             * @default false
-             * @example true
-             */
-            fallback_used: boolean;
-            /**
-             * Error Code
-             * @description Machine-readable error code when the search path is unavailable.
-             * @example search_provider_unavailable
-             */
-            error_code?: string | null;
-        };
-        /**
-         * WebSearchRequest
-         * @description Web search request
-         */
-        WebSearchRequest: {
-            /**
-             * Query
-             * @description Search query for web search. Optional when using source-only site browsing.
-             * @example ApeRAG 2025年最新发展
-             */
-            query?: string | null;
-            /**
-             * Max Results
-             * @description Maximum number of results to return
-             * @default 5
-             * @example 5
-             */
-            max_results: number | null;
-            /**
-             * Timeout
-             * @description Request timeout in seconds
-             * @default 30
-             * @example 30
-             */
-            timeout: number | null;
-            /**
-             * Locale
-             * @description Browser locale
-             * @default en-US
-             * @example en-US
-             */
-            locale: string | null;
-            /**
-             * Source
-             * @description Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').
-             * @example vercel.com
-             */
-            source?: string | null;
-        };
-        /**
-         * WebSearchResponse
-         * @description Web search response
-         */
-        WebSearchResponse: {
-            /**
-             * Query
-             * @description Original search query
-             */
-            query: string;
-            /**
-             * Results
-             * @description List of search results
-             */
-            results: components["schemas"]["WebSearchResultItem"][];
-            /**
-             * Total Results
-             * @description Total number of results found
-             */
-            total_results?: number | null;
-            /**
-             * Search Time
-             * @description Search time in seconds
-             */
-            search_time?: number | null;
-            /** @description Lightweight execution diagnostics for status, provider selection, and fallback behavior. */
-            meta?: components["schemas"]["WebSearchMeta"] | null;
-        };
-        /**
-         * WebSearchResultItem
-         * @description Individual web search result
-         */
-        WebSearchResultItem: {
-            /**
-             * Rank
-             * @description Result rank
-             * @example 1
-             */
-            rank: number;
-            /**
-             * Title
-             * @description Page title
-             * @example ApeRAG 2025年技术路线图
-             */
-            title: string;
-            /**
-             * Url
-             * @description Page URL
-             * @example https://example.com/aperag-2025-roadmap
-             */
-            url: string;
-            /**
-             * Snippet
-             * @description Page snippet
-             * @example ApeRAG在2025年将重点发展...
-             */
-            snippet: string;
-            /**
-             * Domain
-             * @description Domain name
-             * @example example.com
-             */
-            domain: string;
-            /**
-             * Timestamp
-             * @description Result timestamp
-             * @example 2025-01-01T00:00:00Z
-             */
-            timestamp?: string | null;
-        };
+  schemas: {
+    /**
+     * ActivityData
+     * @description Inner payload mirroring ``UserActivityEnvelope`` for wire/at-rest
+     *     same-schema parity. ``DataActivityPart`` is transient — never persisted —
+     *     but the wrapped shape is preserved so the live SSE stream stays
+     *     structurally identical to persisted variants.
+     */
+    ActivityData: {
+      activity: components['schemas']['UserActivityEnvelope'];
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** Agent */
+    'Agent-Input': {
+      completion?: components['schemas']['ModelSpec-Input'] | null;
+      /** System Prompt Template */
+      system_prompt_template?: string | null;
+      /** Query Prompt Template */
+      query_prompt_template?: string | null;
+      /** Collections */
+      collections?: components['schemas']['Collection-Input'][] | null;
+    };
+    /** Agent */
+    'Agent-Output': {
+      completion?: components['schemas']['ModelSpec-Output'] | null;
+      /** System Prompt Template */
+      system_prompt_template?: string | null;
+      /** Query Prompt Template */
+      query_prompt_template?: string | null;
+      /** Collections */
+      collections?: components['schemas']['Collection-Output'][] | null;
+    };
+    /** AgentTurnEnvelope */
+    AgentTurnEnvelope: {
+      /**
+       * Schema Version
+       * @default agent-runtime-v3.1
+       */
+      schema_version: string;
+      /** Turn Id */
+      turn_id: string;
+      /** Chat Id */
+      chat_id: string;
+      /** User Id */
+      user_id: string;
+      /** Bot Id */
+      bot_id: string;
+      /** Request Id */
+      request_id: string;
+      /** Client Idempotency Key */
+      client_idempotency_key: string;
+      /** Status */
+      status: string;
+      /** Input Text */
+      input_text: string;
+      /** Model Profile */
+      model_profile?: {
+        [key: string]: unknown;
+      };
+      /** Error Code */
+      error_code?: string | null;
+      /** Error Message */
+      error_message?: string | null;
+      /**
+       * Timeline Cursor
+       * @default 0
+       */
+      timeline_cursor: number;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+      /** Created At */
+      created_at?: string | null;
+      /** Updated At */
+      updated_at?: string | null;
+    };
+    /**
+     * AgentTurnSnapshot
+     * @description Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90, D8.5-BE / #92).
+     *
+     *     Replaces the legacy ``{turn, timeline, artifacts}`` snapshot shape
+     *     with the ``UIMessage``-aligned canonical that the FE renderer
+     *     (#76 / #77 / #78) consumes from both the live SSE stream and the
+     *     at-rest reload path. Per D8 §2 wire / at-rest are byte-equal, so
+     *     no client-side converter is required: a snapshot reload
+     *     deserializes through the same ``UIMessagePart`` discriminated
+     *     union the wire emits.
+     *
+     *     ``runtime_kind`` (D8.5-BE) tags the runtime that produced the
+     *     turn — ``agent_runtime`` for the agent reasoning loop,
+     *     ``direct_chat`` / ``rag_chat`` reserved for future paths. ``role``
+     *     keeps speaker semantics independent of runtime kind.
+     *
+     *     ``parts`` is the persistable subset (transient ``data-activity``
+     *     is stripped before write per :func:`persistable_parts`);
+     *     ``status`` mirrors the runtime ``AgentTurnStatus`` enum value;
+     *     ``error_text`` surfaces an ``error_summary`` artifact's message
+     *     for failed turns. Turn-shape metadata (timestamps, ids, cursor)
+     *     is kept top-level so the FE can render without a separate
+     *     envelope round-trip.
+     *
+     *     Lives in this module rather than ``schemas`` to keep the
+     *     ``UIMessage`` family (parts + envelope) in a single source-of-truth
+     *     file; ``schemas`` re-exports the name for back-compat with
+     *     existing import sites.
+     */
+    AgentTurnSnapshot: {
+      /**
+       * Schema Version
+       * @default agent-runtime-v3.1
+       */
+      schema_version: string;
+      /** Turn Id */
+      turn_id: string;
+      /** Chat Id */
+      chat_id: string;
+      /**
+       * Runtime Kind
+       * @default agent_runtime
+       * @enum {string}
+       */
+      runtime_kind: 'agent_runtime' | 'direct_chat' | 'rag_chat';
+      /** Input Text */
+      input_text?: string | null;
+      /**
+       * Role
+       * @default assistant
+       * @constant
+       */
+      role: 'assistant';
+      /** Status */
+      status: string;
+      /** Parts */
+      parts?: (
+        | components['schemas']['TextPart']
+        | components['schemas']['ReasoningPart']
+        | components['schemas']['ToolPart']
+        | components['schemas']['SourceUrlPart']
+        | components['schemas']['SourceDocumentPart']
+        | components['schemas']['DataCitationPart']
+        | components['schemas']['DataActivityPart']
+        | components['schemas']['DataToolConsentPart']
+        | components['schemas']['DataElicitationPart']
+      )[];
+      /** Error Text */
+      error_text?: string | null;
+      /**
+       * Timeline Cursor
+       * @default 0
+       */
+      timeline_cursor: number;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+      /** Created At */
+      created_at?: string | null;
+      /** Updated At */
+      updated_at?: string | null;
+    };
+    /** ApiKey */
+    ApiKey: {
+      /** Id */
+      id?: string | null;
+      /** Key */
+      key?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Created At */
+      created_at?: string | null;
+      /** Updated At */
+      updated_at?: string | null;
+      /** Last Used At */
+      last_used_at?: string | null;
+    };
+    /** ApiKeyCreate */
+    ApiKeyCreate: {
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * ApiKeyList
+     * @description A list of API keys
+     */
+    ApiKeyList: {
+      /** Items */
+      items?: components['schemas']['ApiKey'][] | null;
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** ApiKeyUpdate */
+    ApiKeyUpdate: {
+      /** Description */
+      description?: string | null;
+    };
+    /** Auth */
+    Auth: {
+      /** Type */
+      type?: ('none' | 'auth0' | 'authing' | 'logto' | 'cookie') | null;
+      auth0?: components['schemas']['Auth0'] | null;
+      authing?: components['schemas']['Authing'] | null;
+      logto?: components['schemas']['Logto'] | null;
+    };
+    /** Auth0 */
+    Auth0: {
+      /** Auth Domain */
+      auth_domain?: string | null;
+      /** Auth App Id */
+      auth_app_id?: string | null;
+    };
+    /** Authing */
+    Authing: {
+      /** Auth Domain */
+      auth_domain?: string | null;
+      /** Auth App Id */
+      auth_app_id?: string | null;
+    };
+    /** Body_chats_upload_chat_document_view */
+    Body_chats_upload_chat_document_view: {
+      /**
+       * File
+       * Format: binary
+       */
+      file: string;
+    };
+    /** Body_collections_v2_create_documents_v2_view */
+    Body_collections_v2_create_documents_v2_view: {
+      /** Files */
+      files: string[];
+    };
+    /** Body_collections_v2_upload_document_v2_view */
+    Body_collections_v2_upload_document_v2_view: {
+      /**
+       * File
+       * Format: binary
+       */
+      file: string;
+    };
+    /** Bot */
+    Bot: {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      /**
+       * Type
+       * @description The type of bot
+       * @example agent
+       */
+      type?: ('knowledge' | 'common' | 'agent') | null;
+      config?: components['schemas']['BotConfig-Output'] | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** BotConfig */
+    'BotConfig-Input': {
+      agent?: components['schemas']['Agent-Input'] | null;
+    };
+    /** BotConfig */
+    'BotConfig-Output': {
+      agent?: components['schemas']['Agent-Output'] | null;
+    };
+    /** BotCreate */
+    BotCreate: {
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      /**
+       * Type
+       * @description The supported bot type
+       * @example agent
+       */
+      type?: 'agent' | null;
+      config?: components['schemas']['BotConfig-Input'] | null;
+    };
+    /**
+     * BotList
+     * @description A list of bots
+     */
+    BotList: {
+      /** Items */
+      items?: components['schemas']['Bot'][] | null;
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** BotUpdateRequest */
+    BotUpdateRequest: {
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      config?: components['schemas']['BotConfig-Input'] | null;
+    };
+    /** CancelRunResponse */
+    CancelRunResponse: {
+      /** Run Id */
+      run_id: string;
+      status: components['schemas']['EvaluationRunStatus'];
+    };
+    /** CancelTurnResponse */
+    CancelTurnResponse: {
+      /** Turn Id */
+      turn_id: string;
+      /** Status */
+      status: string;
+    };
+    /** ChangePassword */
+    ChangePassword: {
+      /**
+       * Username
+       * @description The username of the user
+       */
+      username?: string | null;
+      /**
+       * Old Password
+       * @description The old password of the user
+       */
+      old_password?: string | null;
+      /**
+       * New Password
+       * @description The new password of the user
+       */
+      new_password?: string | null;
+    };
+    /** CharLocation */
+    CharLocation: {
+      /**
+       * Type
+       * @default char_location
+       * @constant
+       */
+      type: 'char_location';
+      /** Doc Index */
+      doc_index: number;
+      /** Doc Title */
+      doc_title?: string | null;
+      /** Start Char */
+      start_char: number;
+      /** End Char */
+      end_char: number;
+    };
+    /** Chat */
+    Chat: {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Bot Id */
+      bot_id?: string | null;
+      /** Peer Id */
+      peer_id?: string | null;
+      /** Peer Type */
+      peer_type?:
+        | (
+            | 'system'
+            | 'feishu'
+            | 'weixin'
+            | 'weixin_official'
+            | 'web'
+            | 'dingtalk'
+            | 'evaluation'
+          )
+        | null;
+      /** Status */
+      status?: ('active' | 'archived') | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** ChatDetails */
+    ChatDetails: {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Bot Id */
+      bot_id?: string | null;
+      /** Peer Id */
+      peer_id?: string | null;
+      /** Peer Type */
+      peer_type?:
+        | (
+            | 'system'
+            | 'feishu'
+            | 'weixin'
+            | 'weixin_official'
+            | 'web'
+            | 'dingtalk'
+            | 'evaluation'
+          )
+        | null;
+      /**
+       * History
+       * @description Phase 8 D8.5-BE (#92): historical conversation turns as canonical ``AgentTurnSnapshot`` envelopes — each turn carries the same ``UIMessagePart[]`` shape the FE consumes from the live SSE stream (D8 §2 wire/at-rest byte-equal). Replaces the legacy ``list[list[ChatMessage]]`` shape; FE renders historical turns with the same renderer used for live turns.
+       */
+      history?: components['schemas']['AgentTurnSnapshot'][] | null;
+      /** Status */
+      status?: ('active' | 'archived') | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /**
+     * ChatList
+     * @description A list of chats with pagination
+     */
+    ChatList: {
+      /**
+       * Total
+       * @description Total number of items
+       * @example 100
+       */
+      total?: number | null;
+      /**
+       * Page
+       * @description Current page number
+       * @example 1
+       */
+      page?: number | null;
+      /**
+       * Page Size
+       * @description Number of items per page
+       * @example 10
+       */
+      page_size?: number | null;
+      /**
+       * Total Pages
+       * @description Total number of pages
+       * @example 10
+       */
+      total_pages?: number | null;
+      /**
+       * Has Next
+       * @description Whether there is a next page
+       * @example true
+       */
+      has_next?: boolean | null;
+      /**
+       * Has Prev
+       * @description Whether there is a previous page
+       * @example false
+       */
+      has_prev?: boolean | null;
+      /** Items */
+      items?: components['schemas']['Chat'][] | null;
+    };
+    /** ChatUpdate */
+    ChatUpdate: {
+      /** Title */
+      title?: string | null;
+    };
+    /** Chunk */
+    Chunk: {
+      /** Id */
+      id?: string | null;
+      /** Text */
+      text?: string | null;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /** CitationData */
+    CitationData: {
+      /** Cited Text */
+      cited_text: string;
+      /** Location */
+      location:
+        | components['schemas']['CharLocation']
+        | components['schemas']['PageLocation']
+        | components['schemas']['ContentBlockLocation']
+        | components['schemas']['UrlCitationLocation'];
+    };
+    /**
+     * Collection
+     * @description Collection is a collection of documents
+     */
+    'Collection-Input': {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Type */
+      type?: string | null;
+      /** Description */
+      description?: string | null;
+      /**
+       * Summary
+       * @description Auto-generated long-form knowledge-base summary
+       */
+      summary?: string | null;
+      config?: components['schemas']['CollectionConfig-Input'] | null;
+      /** Status */
+      status?: ('ACTIVE' | 'INACTIVE' | 'DELETED') | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+      /**
+       * Is Published
+       * @description Whether the collection is published to marketplace
+       * @default false
+       */
+      is_published: boolean | null;
+      /**
+       * Published At
+       * @description Publication time, null when not published
+       */
+      published_at?: string | null;
+    };
+    /**
+     * Collection
+     * @description Collection is a collection of documents
+     */
+    'Collection-Output': {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Type */
+      type?: string | null;
+      /** Description */
+      description?: string | null;
+      /**
+       * Summary
+       * @description Auto-generated long-form knowledge-base summary
+       */
+      summary?: string | null;
+      config?: components['schemas']['CollectionConfig-Output'] | null;
+      /** Status */
+      status?: ('ACTIVE' | 'INACTIVE' | 'DELETED') | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+      /**
+       * Is Published
+       * @description Whether the collection is published to marketplace
+       * @default false
+       */
+      is_published: boolean | null;
+      /**
+       * Published At
+       * @description Publication time, null when not published
+       */
+      published_at?: string | null;
+    };
+    /** CollectionConfig */
+    'CollectionConfig-Input': {
+      /**
+       * Source
+       * @description Source system identifier. Only `system` is supported.
+       * @default system
+       * @example system
+       */
+      source: string | null;
+      /**
+       * Enable Vector
+       * @description Whether to enable vector index
+       * @default true
+       */
+      enable_vector: boolean | null;
+      /**
+       * Enable Fulltext
+       * @description Whether to enable fulltext index
+       * @default true
+       */
+      enable_fulltext: boolean | null;
+      /**
+       * Enable Knowledge Graph
+       * @description Whether to enable knowledge graph index
+       * @default false
+       */
+      enable_knowledge_graph: boolean | null;
+      /**
+       * Graph Backend Type
+       * @description Lineage graph backend for knowledge graph indexing
+       * @default postgres
+       */
+      graph_backend_type: ('postgres' | 'neo4j' | 'nebula') | null;
+      /**
+       * Fulltext Backend Type
+       * @description Fulltext search backend for the fulltext modality
+       * @default elasticsearch
+       */
+      fulltext_backend_type: ('elasticsearch' | 'opensearch') | null;
+      /**
+       * Enable Summary
+       * @description Whether to enable summary index
+       * @default false
+       */
+      enable_summary: boolean | null;
+      /**
+       * Enable Vision
+       * @description Whether to enable vision index
+       * @default false
+       */
+      enable_vision: boolean | null;
+      knowledge_graph_config?:
+        | components['schemas']['KnowledgeGraphConfig']
+        | null;
+      index_prompts?: components['schemas']['IndexPrompts'] | null;
+      /**
+       * Language
+       * @description Language for the collection content and processing
+       * @default zh-CN
+       * @example zh-CN
+       */
+      language: ('zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR') | null;
+      embedding?: components['schemas']['ModelSpec-Input'] | null;
+      completion?: components['schemas']['ModelSpec-Input'] | null;
+    };
+    /** CollectionConfig */
+    'CollectionConfig-Output': {
+      /**
+       * Source
+       * @description Source system identifier. Only `system` is supported.
+       * @default system
+       * @example system
+       */
+      source: string | null;
+      /**
+       * Enable Vector
+       * @description Whether to enable vector index
+       * @default true
+       */
+      enable_vector: boolean | null;
+      /**
+       * Enable Fulltext
+       * @description Whether to enable fulltext index
+       * @default true
+       */
+      enable_fulltext: boolean | null;
+      /**
+       * Enable Knowledge Graph
+       * @description Whether to enable knowledge graph index
+       * @default false
+       */
+      enable_knowledge_graph: boolean | null;
+      /**
+       * Graph Backend Type
+       * @description Lineage graph backend for knowledge graph indexing
+       * @default postgres
+       */
+      graph_backend_type: ('postgres' | 'neo4j' | 'nebula') | null;
+      /**
+       * Fulltext Backend Type
+       * @description Fulltext search backend for the fulltext modality
+       * @default elasticsearch
+       */
+      fulltext_backend_type: ('elasticsearch' | 'opensearch') | null;
+      /**
+       * Enable Summary
+       * @description Whether to enable summary index
+       * @default false
+       */
+      enable_summary: boolean | null;
+      /**
+       * Enable Vision
+       * @description Whether to enable vision index
+       * @default false
+       */
+      enable_vision: boolean | null;
+      knowledge_graph_config?:
+        | components['schemas']['KnowledgeGraphConfig']
+        | null;
+      index_prompts?: components['schemas']['IndexPrompts'] | null;
+      /**
+       * Language
+       * @description Language for the collection content and processing
+       * @default zh-CN
+       * @example zh-CN
+       */
+      language: ('zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR') | null;
+      embedding?: components['schemas']['ModelSpec-Output'] | null;
+      completion?: components['schemas']['ModelSpec-Output'] | null;
+    };
+    /** CollectionCreate */
+    CollectionCreate: {
+      /** Title */
+      title?: string | null;
+      config?: components['schemas']['CollectionConfig-Input'] | null;
+      /** Type */
+      type?: string | null;
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * CollectionRegenTriggerResponse
+     * @description ``202 Accepted`` envelope for collection regen triggers.
+     */
+    CollectionRegenTriggerResponse: {
+      /**
+       * Collection Id
+       * @description Collection id whose regen was triggered
+       */
+      collection_id: string;
+      /**
+       * Stage
+       * @description Which stage of the regen pipeline was triggered
+       * @enum {string}
+       */
+      stage: 'summary' | 'description';
+      /**
+       * Task Id
+       * @description Opaque tracking token for the dispatched async task
+       */
+      task_id: string;
+      /**
+       * Estimated Completion Seconds
+       * @description Best-effort latency estimate (Stage 1 ~60s agent explore, Stage 2 ~10s LLM derive)
+       */
+      estimated_completion_seconds: number;
+    };
+    /** CollectionUpdate */
+    CollectionUpdate: {
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      config?: components['schemas']['CollectionConfig-Input'] | null;
+    };
+    /**
+     * CollectionView
+     * @description Lightweight collection information for lists, MCP and agents
+     */
+    CollectionView: {
+      /** Id */
+      id?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Type */
+      type?: string | null;
+      /** Status */
+      status?: ('ACTIVE' | 'INACTIVE' | 'DELETED') | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+      /**
+       * Is Published
+       * @default false
+       */
+      is_published: boolean | null;
+      /**
+       * Published At
+       * @description Publication time, null when not published
+       */
+      published_at?: string | null;
+      /**
+       * Owner User Id
+       * @description Collection owner user ID
+       */
+      owner_user_id?: string | null;
+      /**
+       * Owner Username
+       * @description Collection owner username
+       */
+      owner_username?: string | null;
+      /**
+       * Subscription Id
+       * @description Subscription ID if this is a subscribed collection, null for owned collections
+       */
+      subscription_id?: string | null;
+      /**
+       * Subscribed At
+       * @description Subscription time, null for owned collections
+       */
+      subscribed_at?: string | null;
+    };
+    /**
+     * CollectionViewList
+     * @description A list of collection views
+     */
+    CollectionViewList: {
+      /** Items */
+      items?: components['schemas']['CollectionView'][] | null;
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** Config */
+    Config: {
+      /**
+       * Admin User Exists
+       * @description Whether the admin user exists
+       */
+      admin_user_exists?: boolean | null;
+      auth?: components['schemas']['Auth'] | null;
+      /**
+       * Login Methods
+       * @description Available login methods
+       * @example [
+       *       "local",
+       *       "google",
+       *       "github"
+       *     ]
+       */
+      login_methods?: string[] | null;
+    };
+    /** ConfirmDocumentsRequest */
+    ConfirmDocumentsRequest: {
+      /**
+       * Document Ids
+       * @description List of document IDs to confirm
+       */
+      document_ids: string[];
+    };
+    /** ConfirmDocumentsResponse */
+    ConfirmDocumentsResponse: {
+      /**
+       * Confirmed Count
+       * @description Number of documents successfully confirmed
+       */
+      confirmed_count: number;
+      /**
+       * Failed Count
+       * @description Number of documents that failed to confirm
+       */
+      failed_count: number;
+      /**
+       * Failed Documents
+       * @description Details of failed confirmations
+       */
+      failed_documents?: components['schemas']['FailedDocument'][] | null;
+    };
+    /**
+     * ConsentDecisionBody
+     * @description Body for ``POST /agent/turns/{turn_id}/consent/{tool_call_id}``.
+     *
+     *     ``decision`` is one of ``approved`` / ``denied``. The runtime
+     *     transitions ``state="expired"`` independently when the consent
+     *     times out -- not allowed as an inbound decision.
+     */
+    ConsentDecisionBody: {
+      /** Decision */
+      decision: string;
+    };
+    /**
+     * ConsentDecisionResponse
+     * @description Response for the consent POST -- echoes the resolved part.
+     */
+    ConsentDecisionResponse: {
+      /** Consent Id */
+      consent_id: string;
+      /** Decision */
+      decision: string;
+      /** State */
+      state: string;
+    };
+    /** ContentBlockLocation */
+    ContentBlockLocation: {
+      /**
+       * Type
+       * @default content_block_location
+       * @constant
+       */
+      type: 'content_block_location';
+      /** Doc Index */
+      doc_index: number;
+      /** Doc Title */
+      doc_title?: string | null;
+      /** Block Index */
+      block_index: number;
+    };
+    /** CreateTurnRequest */
+    CreateTurnRequest: {
+      /** Query */
+      query: string;
+      completion?: components['schemas']['ModelSpec-Input'] | null;
+      /** Collections */
+      collections?: components['schemas']['Collection-Input'][];
+      /**
+       * Web Search Enabled
+       * @default false
+       */
+      web_search_enabled: boolean;
+      /**
+       * Language
+       * @default zh-CN
+       */
+      language:
+        | (
+            | 'en-US'
+            | 'zh-CN'
+            | 'zh-TW'
+            | 'ja-JP'
+            | 'ko-KR'
+            | 'fr-FR'
+            | 'de-DE'
+            | 'es-ES'
+            | 'it-IT'
+            | 'pt-BR'
+            | 'ru-RU'
+          )
+        | null;
+      /** Files */
+      files?: components['schemas']['File'][];
+      /** Client Idempotency Key */
+      client_idempotency_key?: string | null;
+    };
+    /** CreateTurnResponse */
+    CreateTurnResponse: {
+      turn: components['schemas']['AgentTurnEnvelope'];
+      /** Stream Url */
+      stream_url: string;
+    };
+    /**
+     * DataActivityPart
+     * @description Ephemeral UX activity (thinking / searching / etc.).
+     *
+     *     ``transient=True`` is hard-coded — these parts are only ever
+     *     present in the live SSE stream; ``persistable_parts`` strips them
+     *     before at-rest write.
+     */
+    DataActivityPart: {
+      /**
+       * Type
+       * @default data-activity
+       * @constant
+       */
+      type: 'data-activity';
+      data: components['schemas']['ActivityData'];
+      /**
+       * Transient
+       * @default true
+       * @constant
+       */
+      transient: true;
+    };
+    /**
+     * DataCitationPart
+     * @description Anthropic-shape typed citation (D8 §2 + §2.5).
+     *
+     *     Wrapped ``data: CitationData`` shape per D8 §2 same-schema canonical
+     *     (architect lock 2026-04-25, msg=...): wire and at-rest must round-trip
+     *     byte-for-byte with no wire/at-rest converter layer.
+     */
+    DataCitationPart: {
+      /**
+       * Type
+       * @default data-citation
+       * @constant
+       */
+      type: 'data-citation';
+      data: components['schemas']['CitationData'];
+    };
+    /**
+     * DataElicitationPart
+     * @description User input request (D9 §5).
+     *
+     *     Persisted — the user's response becomes part of message history.
+     *     ``schema`` is the JSON-Schema fragment the FE should render as a
+     *     form; ``response`` is the validated submission.
+     */
+    DataElicitationPart: {
+      /**
+       * Type
+       * @default data-elicitation
+       * @constant
+       */
+      type: 'data-elicitation';
+      data: components['schemas']['ElicitationData'];
+    };
+    /**
+     * DataToolConsentPart
+     * @description Tool consent request / decision (D9 §A7).
+     *
+     *     Persisted as part of the audit trail. Raw tool args are stored
+     *     out-of-band by the runtime; only ``args_preview`` (≤ 500 chars
+     *     redacted preview) and ``args_hash`` (sha256 over canonical JSON)
+     *     appear here.
+     */
+    DataToolConsentPart: {
+      /**
+       * Type
+       * @default data-tool-consent
+       * @constant
+       */
+      type: 'data-tool-consent';
+      data: components['schemas']['ToolConsentData'];
+    };
+    /** DeleteDocumentsRequest */
+    DeleteDocumentsRequest: {
+      /**
+       * Document Ids
+       * @description Document IDs to delete
+       */
+      document_ids: string[];
+    };
+    /** DeleteDocumentsResponse */
+    DeleteDocumentsResponse: {
+      /**
+       * Deleted Ids
+       * @description Document IDs accepted for deletion
+       */
+      deleted_ids: string[];
+      /**
+       * Status
+       * @description Batch deletion status
+       * @constant
+       */
+      status: 'success';
+    };
+    /** Document */
+    Document: {
+      /** Id */
+      id?: string | null;
+      /** Name */
+      name?: string | null;
+      /** Status */
+      status?:
+        | (
+            | 'UPLOADED'
+            | 'EXPIRED'
+            | 'PENDING'
+            | 'RUNNING'
+            | 'COMPLETE'
+            | 'FAILED'
+            | 'DELETING'
+            | 'DELETED'
+          )
+        | null;
+      /** Vector Index Status */
+      vector_index_status?:
+        | ('PENDING' | 'RUNNING' | 'ACTIVE' | 'FAILED')
+        | null;
+      /** Fulltext Index Status */
+      fulltext_index_status?:
+        | ('PENDING' | 'RUNNING' | 'ACTIVE' | 'FAILED')
+        | null;
+      /** Graph Index Status */
+      graph_index_status?: ('PENDING' | 'RUNNING' | 'ACTIVE' | 'FAILED') | null;
+      /** Summary Index Status */
+      summary_index_status?:
+        | ('PENDING' | 'RUNNING' | 'ACTIVE' | 'FAILED')
+        | null;
+      /** Vision Index Status */
+      vision_index_status?:
+        | ('PENDING' | 'RUNNING' | 'ACTIVE' | 'FAILED')
+        | null;
+      /**
+       * Vector Index Updated
+       * @description Vector index last updated time
+       */
+      vector_index_updated?: string | null;
+      /**
+       * Fulltext Index Updated
+       * @description Fulltext index last updated time
+       */
+      fulltext_index_updated?: string | null;
+      /**
+       * Graph Index Updated
+       * @description Graph index last updated time
+       */
+      graph_index_updated?: string | null;
+      /**
+       * Summary Index Updated
+       * @description Summary index last updated time
+       */
+      summary_index_updated?: string | null;
+      /**
+       * Vision Index Updated
+       * @description Vision index last updated time
+       */
+      vision_index_updated?: string | null;
+      /**
+       * Summary
+       * @description Summary of the document
+       */
+      summary?: string | null;
+      /** Size */
+      size?: number | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /**
+     * DocumentList
+     * @description A list of documents with pagination
+     */
+    DocumentList: {
+      /**
+       * Total
+       * @description Total number of items
+       * @example 100
+       */
+      total?: number | null;
+      /**
+       * Page
+       * @description Current page number
+       * @example 1
+       */
+      page?: number | null;
+      /**
+       * Page Size
+       * @description Number of items per page
+       * @example 10
+       */
+      page_size?: number | null;
+      /**
+       * Total Pages
+       * @description Total number of pages
+       * @example 10
+       */
+      total_pages?: number | null;
+      /**
+       * Has Next
+       * @description Whether there is a next page
+       * @example true
+       */
+      has_next?: boolean | null;
+      /**
+       * Has Prev
+       * @description Whether there is a previous page
+       * @example false
+       */
+      has_prev?: boolean | null;
+      /** Items */
+      items?: components['schemas']['Document'][] | null;
+    };
+    /** DocumentPreview */
+    DocumentPreview: {
+      /**
+       * Doc Object Path
+       * @description The path to the document object.
+       */
+      doc_object_path?: string | null;
+      /**
+       * Doc Filename
+       * @description The name of the document.
+       */
+      doc_filename?: string | null;
+      /**
+       * Converted Pdf Object Path
+       * @description The path to the converted PDF object.
+       */
+      converted_pdf_object_path?: string | null;
+      /**
+       * Markdown Content
+       * @description The markdown content of the document.
+       */
+      markdown_content?: string | null;
+      /** Chunks */
+      chunks?: components['schemas']['Chunk'][] | null;
+      /** Vision Chunks */
+      vision_chunks?: components['schemas']['VisionChunk'][] | null;
+    };
+    /** ElicitationData */
+    ElicitationData: {
+      /** Elicitationid */
+      elicitationId: string;
+      /** Servername */
+      serverName: string;
+      /** Prompt */
+      prompt: string;
+      /** Schema */
+      schema?: {
+        [key: string]: unknown;
+      };
+      /** Response */
+      response?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: 'pending' | 'answered' | 'cancelled';
+    };
+    /**
+     * ElicitationSubmitBody
+     * @description Body for ``POST /agent/turns/{turn_id}/elicit/{elicitation_id}``.
+     */
+    ElicitationSubmitBody: {
+      /** Response */
+      response: {
+        [key: string]: unknown;
+      };
+    };
+    /** ElicitationSubmitResponse */
+    ElicitationSubmitResponse: {
+      /** Elicitation Id */
+      elicitation_id: string;
+      /** State */
+      state: string;
+    };
+    /** EmbeddingData */
+    EmbeddingData: {
+      /**
+       * Object
+       * @example embedding
+       */
+      object: string;
+      /** Embedding */
+      embedding: number[];
+      /** Index */
+      index: number;
+    };
+    /**
+     * EmbeddingRequest
+     * @description OpenAI-compatible embedding request.
+     *
+     *     Accepts either the new ``{model_id}`` shape *or* the legacy
+     *     ``{model, model_service_provider, custom_llm_provider}`` triple
+     *     that pre-#1697 callers (provider hurl, external clients) still
+     *     send. ``/api/v1/embeddings`` is permanent OpenAI-compat allowlist
+     *     surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
+     *     triple is resolved to a ``model_id`` server-side via
+     *     ``resolve_legacy_model_id`` before the runtime lookup runs.
+     *     Routes that are post-#1697-only (``/api/v2/...``) require
+     *     ``model_id`` and never accept the triple.
+     */
+    EmbeddingRequest: {
+      /**
+       * Model Id
+       * @description ApeRAG model id
+       */
+      model_id?: string | null;
+      /** Input */
+      input: string | string[];
+      /**
+       * Model
+       * @description Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+       */
+      model?: string | null;
+      /**
+       * Model Service Provider
+       * @description Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+       */
+      model_service_provider?: string | null;
+      /**
+       * Custom Llm Provider
+       * @description Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.
+       */
+      custom_llm_provider?: string | null;
+    };
+    /** EmbeddingResponse */
+    EmbeddingResponse: {
+      /** Object */
+      object: string;
+      /** Data */
+      data: components['schemas']['EmbeddingData'][];
+      /** Model */
+      model: string;
+      usage: components['schemas']['EmbeddingUsage'];
+    };
+    /** EmbeddingUsage */
+    EmbeddingUsage: {
+      /** Prompt Tokens */
+      prompt_tokens: number;
+      /** Total Tokens */
+      total_tokens: number;
+    };
+    /** EvaluationDatasetCreate */
+    EvaluationDatasetCreate: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /** Collection Id */
+      collection_id?: string | null;
+      /** Schema Hint */
+      schema_hint?: {
+        [key: string]: unknown;
+      } | null;
+      /** Items */
+      items?: components['schemas']['EvaluationDatasetItemCreate'][] | null;
+    };
+    /** EvaluationDatasetEnvelope */
+    EvaluationDatasetEnvelope: {
+      /** Id */
+      id: string;
+      /** User Id */
+      user_id: string;
+      /** Collection Id */
+      collection_id?: string | null;
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /** Schema Hint */
+      schema_hint?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Item Count
+       * @default 0
+       */
+      item_count: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** EvaluationDatasetGeneratePreviewRequest */
+    EvaluationDatasetGeneratePreviewRequest: {
+      /** Collection Id */
+      collection_id: string;
+      /**
+       * Count
+       * @description Number of QA pairs to generate (default 10, max 100).
+       * @default 10
+       */
+      count: number;
+      /**
+       * Language
+       * @description ISO locale (zh-CN / en-US / ja-JP / ko-KR). When omitted the BE falls back to ``Collection.config.language``.
+       */
+      language?: string | null;
+      /**
+       * Prompt Template
+       * @description Override the default per-chunk QA generation prompt. The default ships an explicit instruction to emit JSON with ``question`` and ``expected_answer`` fields in the resolved language.
+       */
+      prompt_template?: string | null;
+    };
+    /** EvaluationDatasetGeneratePreviewResponse */
+    EvaluationDatasetGeneratePreviewResponse: {
+      /** Items */
+      items?: components['schemas']['GeneratedDatasetItem'][];
+      /**
+       * Requested Count
+       * @default 0
+       */
+      requested_count: number;
+      /**
+       * Delivered Count
+       * @default 0
+       */
+      delivered_count: number;
+      /** Language */
+      language?: string | null;
+    };
+    /** EvaluationDatasetItemCreate */
+    EvaluationDatasetItemCreate: {
+      /**
+       * Case Key
+       * @description Stable user-facing key. Auto-generated when omitted.
+       */
+      case_key?: string | null;
+      /** Input Message */
+      input_message: string;
+      /** Expected Answer */
+      expected_answer?: string | null;
+      /** Reference Context */
+      reference_context?: string | null;
+      /** Tags */
+      tags?: string[] | null;
+      /** Case Metadata */
+      case_metadata?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Sort Key
+       * @default 0
+       */
+      sort_key: number;
+    };
+    /** EvaluationDatasetItemEnvelope */
+    EvaluationDatasetItemEnvelope: {
+      /** Id */
+      id: string;
+      /** Dataset Id */
+      dataset_id: string;
+      /** Case Key */
+      case_key: string;
+      /** Input Message */
+      input_message: string;
+      /** Expected Answer */
+      expected_answer?: string | null;
+      /** Reference Context */
+      reference_context?: string | null;
+      /** Tags */
+      tags?: string[] | null;
+      /** Case Metadata */
+      case_metadata?: {
+        [key: string]: unknown;
+      } | null;
+      /** Sort Key */
+      sort_key: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** EvaluationDatasetItemListResponse */
+    EvaluationDatasetItemListResponse: {
+      /** Items */
+      items?: components['schemas']['EvaluationDatasetItemEnvelope'][];
+      pagination?: components['schemas']['EvaluationPagination'];
+    };
+    /** EvaluationDatasetItemUpdate */
+    EvaluationDatasetItemUpdate: {
+      /** Case Key */
+      case_key?: string | null;
+      /** Input Message */
+      input_message?: string | null;
+      /** Expected Answer */
+      expected_answer?: string | null;
+      /** Reference Context */
+      reference_context?: string | null;
+      /** Tags */
+      tags?: string[] | null;
+      /** Case Metadata */
+      case_metadata?: {
+        [key: string]: unknown;
+      } | null;
+      /** Sort Key */
+      sort_key?: number | null;
+    };
+    /** EvaluationDatasetItemsAppendRequest */
+    EvaluationDatasetItemsAppendRequest: {
+      /** Items */
+      items?: components['schemas']['EvaluationDatasetItemCreate'][];
+    };
+    /** EvaluationDatasetItemsAppendResponse */
+    EvaluationDatasetItemsAppendResponse: {
+      /** Items */
+      items?: components['schemas']['EvaluationDatasetItemEnvelope'][];
+    };
+    /** EvaluationDatasetListResponse */
+    EvaluationDatasetListResponse: {
+      /** Items */
+      items?: components['schemas']['EvaluationDatasetEnvelope'][];
+      pagination?: components['schemas']['EvaluationPagination'];
+    };
+    /** EvaluationDatasetUpdate */
+    EvaluationDatasetUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * EvaluationJudgeMode
+     * @enum {string}
+     */
+    EvaluationJudgeMode: 'none' | 'exact_match' | 'llm_as_judge';
+    /** EvaluationPagination */
+    EvaluationPagination: {
+      /**
+       * Total
+       * @default 0
+       */
+      total: number;
+      /**
+       * Offset
+       * @default 0
+       */
+      offset: number;
+      /**
+       * Limit
+       * @default 20
+       */
+      limit: number;
+    };
+    /** EvaluationRunCreate */
+    EvaluationRunCreate: {
+      /**
+       * Dataset Id
+       * @description Required dataset id for this run
+       */
+      dataset_id: string;
+      /**
+       * Bot Id
+       * @description Optional explicit bot id. When omitted the service resolves the user's default bot (active bot with title 'Default Agent Bot' first, otherwise oldest active bot).
+       */
+      bot_id?: string | null;
+      /** Name */
+      name?: string | null;
+      /**
+       * Answer Model
+       * @description Override the LLM used to generate the answer (RAG / agent). Defaults to the collection's completion model.
+       */
+      answer_model?: string | null;
+      /**
+       * Judge Model
+       * @description Override the LLM used by LLM-as-judge for scoring. Defaults to the collection's completion model.
+       */
+      judge_model?: string | null;
+      judge?: components['schemas']['JudgeConfig'] | null;
+      /** Bot Config Snapshot */
+      bot_config_snapshot?: {
+        [key: string]: unknown;
+      } | null;
+      /** Model Config Snapshot */
+      model_config_snapshot?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /** EvaluationRunDetailResponse */
+    EvaluationRunDetailResponse: {
+      run: components['schemas']['EvaluationRunEnvelope'];
+      summary?: components['schemas']['EvaluationRunSummary'] | null;
+      progress?: components['schemas']['EvaluationRunProgress'] | null;
+    };
+    /** EvaluationRunEnvelope */
+    EvaluationRunEnvelope: {
+      /** Id */
+      id: string;
+      /** User Id */
+      user_id: string;
+      /** Bot Id */
+      bot_id: string;
+      /** Dataset Id */
+      dataset_id: string;
+      /** Collection Id */
+      collection_id?: string | null;
+      /** Dataset Name */
+      dataset_name?: string | null;
+      /** Name */
+      name?: string | null;
+      status: components['schemas']['EvaluationRunStatus'];
+      summary?: components['schemas']['EvaluationRunSummary'] | null;
+      /** Answer Model */
+      answer_model?: string | null;
+      /** Judge Model */
+      judge_model?: string | null;
+      judge_config?: components['schemas']['JudgeConfig'] | null;
+      /** Bot Config Snapshot */
+      bot_config_snapshot?: {
+        [key: string]: unknown;
+      } | null;
+      /** Model Config Snapshot */
+      model_config_snapshot?: {
+        [key: string]: unknown;
+      } | null;
+      /** Error */
+      error?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+    };
+    /** EvaluationRunItemAttemptEnvelope */
+    EvaluationRunItemAttemptEnvelope: {
+      /** Id */
+      id: string;
+      /** Run Item Id */
+      run_item_id: string;
+      /** Run Id */
+      run_id: string;
+      /** Attempt No */
+      attempt_no: number;
+      status: components['schemas']['EvaluationRunItemAttemptStatus'];
+      /** Agent Chat Id */
+      agent_chat_id?: string | null;
+      /** Agent Turn Id */
+      agent_turn_id?: string | null;
+      /** Answer Text */
+      answer_text?: string | null;
+      /** Judge Result */
+      judge_result?: {
+        [key: string]: unknown;
+      } | null;
+      /** Score */
+      score?: string | null;
+      /** Latency Ms */
+      latency_ms?: number | null;
+      /** Token Usage */
+      token_usage?: {
+        [key: string]: unknown;
+      } | null;
+      /** Error */
+      error?: string | null;
+      /** Retry Reason */
+      retry_reason?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+    };
+    /** EvaluationRunItemAttemptList */
+    EvaluationRunItemAttemptList: {
+      /** Items */
+      items?: components['schemas']['EvaluationRunItemAttemptEnvelope'][];
+    };
+    /**
+     * EvaluationRunItemAttemptStatus
+     * @enum {string}
+     */
+    EvaluationRunItemAttemptStatus:
+      | 'queued'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'cancelled';
+    /** EvaluationRunItemEnvelope */
+    EvaluationRunItemEnvelope: {
+      /** Id */
+      id: string;
+      /** Run Id */
+      run_id: string;
+      /** Source Dataset Item Id */
+      source_dataset_item_id?: string | null;
+      /** Case Key */
+      case_key: string;
+      /** Sort Key */
+      sort_key: number;
+      /** Input Message */
+      input_message: string;
+      /** Expected Answer */
+      expected_answer?: string | null;
+      /** Reference Context */
+      reference_context?: string | null;
+      /** Tags */
+      tags?: string[] | null;
+      /** Case Metadata */
+      case_metadata?: {
+        [key: string]: unknown;
+      } | null;
+      status: components['schemas']['EvaluationRunItemStatus'];
+      /** Best Score */
+      best_score?: string | null;
+      /** Latest Attempt Id */
+      latest_attempt_id?: string | null;
+      latest_attempt?:
+        | components['schemas']['EvaluationRunItemAttemptEnvelope']
+        | null;
+      /** Attempt Count */
+      attempt_count: number;
+      /** Judge Breakdown */
+      judge_breakdown?: {
+        [key: string]: unknown;
+      } | null;
+      /** Error */
+      error?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** EvaluationRunItemListResponse */
+    EvaluationRunItemListResponse: {
+      /** Items */
+      items?: components['schemas']['EvaluationRunItemEnvelope'][];
+      pagination?: components['schemas']['EvaluationPagination'];
+    };
+    /**
+     * EvaluationRunItemStatus
+     * @enum {string}
+     */
+    EvaluationRunItemStatus:
+      | 'pending'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'cancelled';
+    /** EvaluationRunListResponse */
+    EvaluationRunListResponse: {
+      /** Items */
+      items?: components['schemas']['EvaluationRunEnvelope'][];
+      pagination?: components['schemas']['EvaluationPagination'];
+    };
+    /** EvaluationRunProgress */
+    EvaluationRunProgress: {
+      /** Percent */
+      percent?: number | null;
+      /** Eta Ms */
+      eta_ms?: number | null;
+    };
+    /**
+     * EvaluationRunStatus
+     * @enum {string}
+     */
+    EvaluationRunStatus:
+      | 'queued'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'cancelled';
+    /** EvaluationRunSummary */
+    EvaluationRunSummary: {
+      /**
+       * Total
+       * @default 0
+       */
+      total: number;
+      /**
+       * Pending
+       * @default 0
+       */
+      pending: number;
+      /**
+       * Running
+       * @default 0
+       */
+      running: number;
+      /**
+       * Completed
+       * @default 0
+       */
+      completed: number;
+      /**
+       * Failed
+       * @default 0
+       */
+      failed: number;
+      /**
+       * Cancelled
+       * @default 0
+       */
+      cancelled: number;
+      /** Avg Score */
+      avg_score?: number | null;
+      /** Pass Rate */
+      pass_rate?: number | null;
+    };
+    /** ExportTaskResponse */
+    ExportTaskResponse: {
+      /**
+       * Export Task Id
+       * @description Unique ID of the export task
+       */
+      export_task_id: string;
+      /**
+       * Status
+       * @description Current status of the export task
+       * @enum {string}
+       */
+      status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'EXPIRED';
+      /**
+       * Progress
+       * @description Progress percentage (0-100)
+       */
+      progress?: number | null;
+      /**
+       * Message
+       * @description Human-readable status message
+       */
+      message?: string | null;
+      /**
+       * Error Message
+       * @description Error detail when status is FAILED
+       */
+      error_message?: string | null;
+      /**
+       * Download Url
+       * @description URL to download the ZIP file (only set when status is COMPLETED)
+       */
+      download_url?: string | null;
+      /**
+       * File Size
+       * @description Size of the ZIP file in bytes
+       */
+      file_size?: number | null;
+      /** Gmt Created */
+      gmt_created?: string | null;
+      /** Gmt Completed */
+      gmt_completed?: string | null;
+      /**
+       * Gmt Expires
+       * @description Time when the export file will be automatically deleted (7 days after creation)
+       */
+      gmt_expires?: string | null;
+    };
+    /** FailedDocument */
+    FailedDocument: {
+      /** Document Id */
+      document_id?: string | null;
+      /**
+       * Name
+       * @description Name of the document
+       */
+      name?: string | null;
+      /** Error */
+      error?: string | null;
+    };
+    /** Feedback */
+    Feedback: {
+      /** Type */
+      type?: ('good' | 'bad') | null;
+      /** Tag */
+      tag?: ('Harmful' | 'Unsafe' | 'Fake' | 'Unhelpful' | 'Other') | null;
+      /** Message */
+      message?: string | null;
+    };
+    /** FetchUrlRequest */
+    FetchUrlRequest: {
+      /**
+       * Urls
+       * @description List of URLs to fetch and import (max 10)
+       * @example [
+       *       "https://example.com/article1",
+       *       "https://example.com/article2"
+       *     ]
+       */
+      urls: string[];
+    };
+    /** FetchUrlResponse */
+    FetchUrlResponse: {
+      /**
+       * Results
+       * @description Results for each URL
+       */
+      results: components['schemas']['FetchUrlResultItem'][];
+      /**
+       * Total
+       * @description Total number of URLs processed
+       */
+      total: number;
+      /**
+       * Succeeded
+       * @description Number of URLs successfully fetched
+       */
+      succeeded: number;
+      /**
+       * Failed
+       * @description Number of URLs that failed
+       */
+      failed: number;
+    };
+    /** FetchUrlResultItem */
+    FetchUrlResultItem: {
+      /**
+       * Url
+       * @description The source URL
+       */
+      url: string;
+      /**
+       * Fetch Status
+       * @description Whether the URL was fetched successfully
+       * @enum {string}
+       */
+      fetch_status: 'success' | 'error';
+      /**
+       * Document Id
+       * @description ID of the created document (only present on success)
+       */
+      document_id?: string | null;
+      /**
+       * Filename
+       * @description Filename of the created document (only present on success)
+       */
+      filename?: string | null;
+      /**
+       * Size
+       * @description Size of the created document in bytes (only present on success)
+       */
+      size?: number | null;
+      /**
+       * Status
+       * @description Document status (only present on success)
+       */
+      status?: string | null;
+      /**
+       * Error
+       * @description Error message (only present on failure)
+       */
+      error?: string | null;
+    };
+    /** File */
+    File: {
+      /** Id */
+      id?: string | null;
+      /** Name */
+      name?: string | null;
+    };
+    /** FulltextSearchParams */
+    FulltextSearchParams: {
+      /**
+       * Topk
+       * @description Top K results
+       */
+      topk?: number | null;
+      /**
+       * Keywords
+       * @description Custom keywords to use for fulltext search
+       */
+      keywords?: string[] | null;
+    };
+    /** GeneratedDatasetItem */
+    GeneratedDatasetItem: {
+      /** Question */
+      question: string;
+      /** Expected Answer */
+      expected_answer: string;
+      /** Reference Context */
+      reference_context?: string | null;
+    };
+    /**
+     * GraphCurationRunSummary
+     * @description Summary of an asynchronous graph-curation run.
+     */
+    GraphCurationRunSummary: {
+      /**
+       * Id
+       * @description Run ID
+       * @example gcr_abcd1234efgh5678
+       */
+      id: string;
+      /**
+       * Collection Id
+       * @description Collection ID
+       * @example col123
+       */
+      collection_id: string;
+      /**
+       * Status
+       * @description Run lifecycle status
+       * @example COMPLETED
+       * @enum {string}
+       */
+      status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+      /**
+       * Stats
+       * @description Best-effort execution stats for the latest run
+       */
+      stats?: {
+        [key: string]: unknown;
+      };
+      /**
+       * Error Message
+       * @description Failure message if the run failed
+       * @example LLM adjudication timed out
+       */
+      error_message?: string | null;
+      /**
+       * Created
+       * @description Creation timestamp
+       * @example 2026-04-23T00:00:00Z
+       */
+      created?: string | null;
+      /**
+       * Updated
+       * @description Last update timestamp
+       * @example 2026-04-23T00:02:00Z
+       */
+      updated?: string | null;
+      /**
+       * Started
+       * @description Run start timestamp
+       * @example 2026-04-23T00:00:05Z
+       */
+      started?: string | null;
+      /**
+       * Finished
+       * @description Run finish timestamp
+       * @example 2026-04-23T00:02:00Z
+       */
+      finished?: string | null;
+    };
+    /**
+     * GraphEdge
+     * @description Knowledge graph edge representing a relationship
+     */
+    GraphEdge: {
+      /**
+       * Id
+       * @description Unique identifier for the edge
+       * @example 墨香居-深夜读书会
+       */
+      id: string;
+      /**
+       * Type
+       * @description Type of the relationship
+       * @default DIRECTED
+       * @example DIRECTED
+       */
+      type: string | null;
+      /**
+       * Source
+       * @description Source node ID
+       * @example 墨香居
+       */
+      source: string;
+      /**
+       * Target
+       * @description Target node ID
+       * @example 深夜读书会
+       */
+      target: string;
+      /** @description Public edge properties */
+      properties: components['schemas']['GraphEdgeProperties'];
+    };
+    /**
+     * GraphEdgeProperties
+     * @description Public edge properties for graph visualization.
+     */
+    GraphEdgeProperties: {
+      /**
+       * Weight
+       * @description Relationship weight/strength
+       * @example 9
+       */
+      weight?: number | null;
+      /**
+       * Description
+       * @description Description of the relationship
+       * @example 深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。
+       */
+      description?: string | null;
+      /**
+       * Keywords
+       * @description Keywords associated with the relationship
+       * @example 书店活力,活动
+       */
+      keywords?: string | null;
+      /**
+       * Relation Type
+       * @description Canonical relationship type
+       * @example 经营
+       */
+      relation_type?: string | null;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks supporting this relationship; raw chunk IDs are not exposed
+       * @example 2
+       */
+      source_chunk_count?: number | null;
+    };
+    /**
+     * GraphEmbeddingMapRelation
+     * @description Edge in the embedding-map view.
+     */
+    GraphEmbeddingMapRelation: {
+      /**
+       * Source
+       * @description Source entity name
+       */
+      source: string;
+      /**
+       * Target
+       * @description Target entity name
+       */
+      target: string;
+    };
+    /**
+     * GraphEmbeddingMapResponse
+     * @description Response for ``GET /graphs/embedding-map``.
+     */
+    GraphEmbeddingMapResponse: {
+      /** Points */
+      points: components['schemas']['GraphEmbeddingPoint'][];
+      /** Relations */
+      relations: components['schemas']['GraphEmbeddingMapRelation'][];
+      /**
+       * Cluster Labels
+       * @description cluster index -> entity_type label (1:1 mapping)
+       */
+      cluster_labels: {
+        [key: string]: string;
+      };
+      /**
+       * Layout From Cache
+       * @description Whether the 2-D projection was served from the layout cache
+       * @default false
+       */
+      layout_from_cache: boolean;
+    };
+    /**
+     * GraphEmbeddingPoint
+     * @description Single point in the 2-D projection of entity vectors.
+     */
+    GraphEmbeddingPoint: {
+      /**
+       * Name
+       * @description Canonical entity name
+       */
+      name: string;
+      /**
+       * Entity Type
+       * @description Entity type bucket
+       */
+      entity_type: string;
+      /**
+       * Cluster
+       * @description entity_type bucket index (sequential, not k-means clustering)
+       */
+      cluster: number;
+      /**
+       * X
+       * @description X coordinate in the 2-D projection of the entity vectors
+       */
+      x: number;
+      /**
+       * Y
+       * @description Y coordinate in the 2-D projection of the entity vectors
+       */
+      y: number;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks supporting this entity
+       * @default 0
+       */
+      source_chunk_count: number;
+    };
+    /**
+     * GraphEntitiesSearchResponse
+     * @description Response for ``GET /graphs/entities/search``.
+     */
+    GraphEntitiesSearchResponse: {
+      /**
+       * Entities
+       * @description Entities returned by vector recall, ordered by descending similarity score
+       */
+      entities: components['schemas']['GraphSearchEntity'][];
+    };
+    /**
+     * GraphEvidenceChunk
+     * @description Bounded source chunk returned when a graph item is selected.
+     */
+    GraphEvidenceChunk: {
+      /**
+       * Document Id
+       * @description Source document ID
+       */
+      document_id: string;
+      /**
+       * Document Name
+       * @description Source document name
+       */
+      document_name?: string | null;
+      /**
+       * Parse Version
+       * @description Parse version that produced the lineage member
+       */
+      parse_version: string;
+      /**
+       * Chunk Id
+       * @description Source chunk ID
+       */
+      chunk_id: string;
+      /**
+       * Text
+       * @description Truncated chunk text
+       */
+      text: string;
+      /**
+       * Section Path
+       * @description Source section path
+       */
+      section_path?: string | null;
+      /**
+       * Heading Anchor
+       * @description Source heading anchor
+       */
+      heading_anchor?: string | null;
+      /**
+       * Page Idx
+       * @description Source page index when available
+       */
+      page_idx?: number | null;
+    };
+    /**
+     * GraphEvidenceRef
+     * @description Lightweight source chunk reference for graph entity/relation evidence.
+     *
+     *     ``read_document_chunk`` is document-scoped, so MCP callers need both
+     *     ``document_id`` and ``chunk_id`` to follow graph evidence back to source
+     *     content. ``parse_version`` is carried when available to disambiguate
+     *     lineage across document re-parses.
+     */
+    GraphEvidenceRef: {
+      /**
+       * Document Id
+       * @description Source document ID
+       */
+      document_id: string;
+      /**
+       * Chunk Id
+       * @description Source chunk ID
+       */
+      chunk_id: string;
+      /**
+       * Parse Version
+       * @description Parse version that produced this evidence ref
+       */
+      parse_version?: string | null;
+    };
+    /**
+     * GraphEvidenceResponse
+     * @description Lazy evidence payload for a graph node or edge.
+     */
+    GraphEvidenceResponse: {
+      /**
+       * Subject Type
+       * @description Evidence subject type
+       * @enum {string}
+       */
+      subject_type: 'entity' | 'relation';
+      /**
+       * Entity Name
+       * @description Entity name when subject_type is entity
+       */
+      entity_name?: string | null;
+      /**
+       * Source
+       * @description Relation source entity
+       */
+      source?: string | null;
+      /**
+       * Target
+       * @description Relation target entity
+       */
+      target?: string | null;
+      /**
+       * Relation Type
+       * @description Relation type when subject_type is relation
+       */
+      relation_type?: string | null;
+      /**
+       * Total Source Chunks
+       * @description Total source chunk references before limiting
+       */
+      total_source_chunks: number;
+      /**
+       * Chunks
+       * @description Bounded source chunk snippets
+       */
+      chunks: components['schemas']['GraphEvidenceChunk'][];
+    };
+    /**
+     * GraphHybridNode
+     * @description Node in the graph-hybrid visualization.
+     */
+    GraphHybridNode: {
+      /**
+       * Id
+       * @description Unique identifier for the node (entity name)
+       * @example 墨香居
+       */
+      id: string;
+      /**
+       * Labels
+       * @description Labels associated with the node
+       * @example [
+       *       "墨香居"
+       *     ]
+       */
+      labels: string[];
+      /** @description Public node properties */
+      properties: components['schemas']['GraphNodeProperties'];
+      /**
+       * X
+       * @description X coordinate in the 2-D projection of the entity vector
+       */
+      x: number;
+      /**
+       * Y
+       * @description Y coordinate in the 2-D projection of the entity vector
+       */
+      y: number;
+      /**
+       * Cluster
+       * @description entity_type bucket index (sequential, not k-means clustering)
+       */
+      cluster: number;
+      /**
+       * Value
+       * @description Display size weight derived from relation degree
+       */
+      value: number;
+    };
+    /**
+     * GraphHybridResponse
+     * @description Response for ``GET /graphs/hybrid``.
+     */
+    GraphHybridResponse: {
+      /**
+       * Nodes
+       * @description Positioned entity nodes
+       */
+      nodes: components['schemas']['GraphHybridNode'][];
+      /**
+       * Edges
+       * @description Relations whose endpoints both have coordinates
+       */
+      edges: components['schemas']['GraphEdge'][];
+      /**
+       * Cluster Labels
+       * @description cluster index -> entity_type label (1:1 mapping)
+       */
+      cluster_labels: {
+        [key: string]: string;
+      };
+      /**
+       * Is Truncated
+       * @description Whether the node set hit the max_entities limit
+       */
+      is_truncated: boolean;
+      /**
+       * Layout From Cache
+       * @description Whether the 2-D projection was served from the layout cache
+       * @default false
+       */
+      layout_from_cache: boolean;
+      /**
+       * Layout Source
+       * @description Whether node coordinates came from entity vectors or from the facts-layer fallback layout
+       * @default embedding
+       * @enum {string}
+       */
+      layout_source: 'embedding' | 'facts';
+    };
+    /**
+     * GraphLabelsResponse
+     * @description Response containing available graph labels
+     */
+    GraphLabelsResponse: {
+      /**
+       * Labels
+       * @description List of available node labels in the knowledge graph
+       * @example [
+       *       "墨香居",
+       *       "李明华",
+       *       "林晓雯",
+       *       "深夜读书会"
+       *     ]
+       */
+      labels: string[];
+    };
+    /**
+     * GraphMergeSuggestionEntity
+     * @description Snapshot of an entity at suggestion-generation time.
+     */
+    GraphMergeSuggestionEntity: {
+      /**
+       * Entity Id
+       * @description Entity ID
+       * @example e_moxiangju
+       */
+      entity_id: string;
+      /**
+       * Entity Name
+       * @description Entity name
+       * @example 墨香居
+       */
+      entity_name: string;
+      /**
+       * Entity Type
+       * @description Entity type
+       * @example ORGANIZATION
+       */
+      entity_type: string;
+      /**
+       * Description
+       * @description Entity description
+       * @example 这条老巷子里唯一的旧书店
+       */
+      description: string;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks referenced by this entity
+       * @example 3
+       */
+      source_chunk_count: number;
+    };
+    /**
+     * GraphMergeSuggestionItem
+     * @description Persisted merge suggestion produced by graph curation.
+     */
+    GraphMergeSuggestionItem: {
+      /**
+       * Id
+       * @description Suggestion ID
+       * @example gcs_abcd1234efgh5678
+       */
+      id: string;
+      /**
+       * Run Id
+       * @description Run that produced this suggestion
+       * @example gcr_abcd1234efgh5678
+       */
+      run_id: string;
+      /**
+       * Suggestion Batch Id
+       * @description Backward-compatible alias of run_id for the existing FE review panel
+       * @example gcr_abcd1234efgh5678
+       */
+      suggestion_batch_id: string;
+      /**
+       * Collection Id
+       * @description Collection ID
+       * @example col123
+       */
+      collection_id: string;
+      /**
+       * Status
+       * @description Suggestion lifecycle status
+       * @example PENDING
+       * @enum {string}
+       */
+      status:
+        | 'PENDING'
+        | 'APPLY_PENDING'
+        | 'APPLYING'
+        | 'APPLIED'
+        | 'APPLY_FAILED'
+        | 'ACCEPTED'
+        | 'REJECTED'
+        | 'DISMISSED'
+        | 'EXPIRED'
+        | 'SUPERSEDED';
+      /**
+       * Entity Ids
+       * @description Entity IDs in the candidate merge set
+       * @example [
+       *       "e_moxiangju",
+       *       "e_old_bookstore"
+       *     ]
+       */
+      entity_ids: string[];
+      /**
+       * Entities
+       * @description Entity snapshots captured when the suggestion was generated
+       */
+      entities: components['schemas']['GraphMergeSuggestionEntity'][];
+      /**
+       * Target Entity Id
+       * @description Recommended surviving entity ID if the suggestion is accepted
+       * @example e_moxiangju
+       */
+      target_entity_id: string;
+      /** @description Backward-compatible target entity projection for the existing FE review panel */
+      suggested_target_entity: components['schemas']['GraphMergeSuggestionTargetEntity'];
+      /**
+       * Confidence Score
+       * @description Aggregated confidence score for this suggestion
+       * @example 0.91
+       */
+      confidence_score: number;
+      /**
+       * Reason
+       * @description Human-readable explanation from pairwise LLM adjudication
+       * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
+       */
+      reason: string;
+      /**
+       * Merge Reason
+       * @description Backward-compatible alias of reason for the existing FE review panel
+       * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
+       */
+      merge_reason: string;
+      /**
+       * Evidence
+       * @description Structured supporting evidence used to generate the suggestion
+       */
+      evidence?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Evidence Refs
+       * @description Display-ready source chunk refs supporting this suggestion
+       */
+      evidence_refs?: components['schemas']['GraphEvidenceRef'][];
+      /**
+       * Resolution Note
+       * @description System note explaining why the suggestion left pending state
+       * @example superseded_by:gcs_other
+       */
+      resolution_note?: string | null;
+      /**
+       * Created
+       * @description Creation timestamp
+       * @example 2026-04-23T00:02:00Z
+       */
+      created?: string | null;
+      /**
+       * Updated
+       * @description Last update timestamp
+       * @example 2026-04-23T00:05:00Z
+       */
+      updated?: string | null;
+      /**
+       * Operated At
+       * @description User-operation timestamp for accepted/rejected suggestions
+       * @example 2026-04-23T00:05:00Z
+       */
+      operated_at?: string | null;
+    };
+    /**
+     * GraphMergeSuggestionTargetEntity
+     * @description Legacy FE-compatible target entity projection.
+     */
+    GraphMergeSuggestionTargetEntity: {
+      /**
+       * Entity Name
+       * @description Recommended target entity display name
+       * @example 墨香居
+       */
+      entity_name: string;
+      /**
+       * Entity Type
+       * @description Recommended target entity type
+       * @example ORGANIZATION
+       */
+      entity_type: string;
+    };
+    /**
+     * GraphNode
+     * @description Knowledge graph node representing an entity
+     */
+    GraphNode: {
+      /**
+       * Id
+       * @description Unique identifier for the node (entity name)
+       * @example 墨香居
+       */
+      id: string;
+      /**
+       * Labels
+       * @description Labels associated with the node
+       * @example [
+       *       "墨香居"
+       *     ]
+       */
+      labels: string[];
+      /** @description Public node properties */
+      properties: components['schemas']['GraphNodeProperties'];
+    };
+    /**
+     * GraphNodeProperties
+     * @description Public node properties for graph visualization.
+     */
+    GraphNodeProperties: {
+      /**
+       * Entity Id
+       * @description Entity identifier
+       * @example 墨香居
+       */
+      entity_id?: string | null;
+      /**
+       * Entity Name
+       * @description Entity display name
+       * @example 墨香居
+       */
+      entity_name?: string | null;
+      /**
+       * Entity Type
+       * @description Type of the entity
+       * @example organization
+       */
+      entity_type?: string | null;
+      /**
+       * Description
+       * @description Description of the entity
+       * @example 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
+       */
+      description?: string | null;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks supporting this entity; raw chunk IDs are not exposed
+       * @example 3
+       */
+      source_chunk_count?: number | null;
+    };
+    /**
+     * GraphRelationEvidenceRequest
+     * @description Request body for lazy relation evidence lookup.
+     */
+    GraphRelationEvidenceRequest: {
+      /**
+       * Source
+       * @description Relation source entity
+       */
+      source: string;
+      /**
+       * Target
+       * @description Relation target entity
+       */
+      target: string;
+      /**
+       * Relation Type
+       * @description Relation type
+       */
+      relation_type: string;
+      /**
+       * Limit
+       * @description Maximum evidence chunks to return
+       * @default 5
+       */
+      limit: number;
+    };
+    /**
+     * GraphRelationView
+     * @description Relation projection used by subgraph expansion responses.
+     */
+    GraphRelationView: {
+      /**
+       * Source
+       * @description Source entity name
+       * @example 李明华
+       */
+      source: string;
+      /**
+       * Target
+       * @description Target entity name
+       * @example 墨香居
+       */
+      target: string;
+      /**
+       * Description
+       * @description Compacted description if available, otherwise joined description parts
+       * @example 李明华经营墨香居
+       */
+      description: string;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks supporting this relationship
+       * @default 0
+       * @example 2
+       */
+      source_chunk_count: number;
+      /**
+       * Evidence Refs
+       * @description Bounded source chunk refs for follow-up read_document_chunk calls
+       */
+      evidence_refs?: components['schemas']['GraphEvidenceRef'][];
+    };
+    /**
+     * GraphSearchEntity
+     * @description Entity returned by ``/graphs/entities/search`` and
+     *     ``/graphs/entities/{name}``.
+     *
+     *     Mirrors :class:`aperag.indexing.graph.EntityWithLineage` projected
+     *     to the public-facing fields. The ``description`` field collapses
+     *     ``compacted_description`` (when present) and ``description_parts``
+     *     using the same rule as :func:`GraphSearchService.compose_context`,
+     *     so MCP callers see one stable text — independent of whether the
+     *     GraphIndexCompactor (task #2) has run yet.
+     */
+    GraphSearchEntity: {
+      /**
+       * Name
+       * @description Canonical entity name
+       * @example 墨香居
+       */
+      name: string;
+      /**
+       * Entity Type
+       * @description Entity type
+       * @example organization
+       */
+      entity_type: string;
+      /**
+       * Description
+       * @description Compacted description if available, otherwise joined description parts
+       * @example 墨香居是这条老巷子里唯一的旧书店。
+       */
+      description: string;
+      /**
+       * Source Chunk Count
+       * @description Number of source chunks supporting this entity
+       * @default 0
+       * @example 3
+       */
+      source_chunk_count: number;
+      /**
+       * Evidence Refs
+       * @description Bounded source chunk refs for follow-up read_document_chunk calls
+       */
+      evidence_refs?: components['schemas']['GraphEvidenceRef'][];
+    };
+    /** GraphSearchParams */
+    GraphSearchParams: {
+      /**
+       * Topk
+       * @description Top K results
+       */
+      topk?: number | null;
+    };
+    /**
+     * GraphSubgraphExpandRequest
+     * @description Request body for ``POST /graphs/subgraph/expand``.
+     */
+    GraphSubgraphExpandRequest: {
+      /**
+       * Entity Names
+       * @description Anchor entity names to expand from
+       * @example [
+       *       "墨香居",
+       *       "李明华"
+       *     ]
+       */
+      entity_names: string[];
+      /**
+       * Hops
+       * @description Number of hops to expand (bounded by backend implementation)
+       * @default 1
+       * @example 1
+       */
+      hops: number;
+    };
+    /**
+     * GraphSubgraphExpandResponse
+     * @description Response for ``POST /graphs/subgraph/expand``.
+     */
+    GraphSubgraphExpandResponse: {
+      /**
+       * Entities
+       * @description Entities reachable from the anchor names within ``hops``
+       */
+      entities: components['schemas']['GraphSearchEntity'][];
+      /**
+       * Relations
+       * @description Relations connecting the returned entities
+       */
+      relations: components['schemas']['GraphRelationView'][];
+    };
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][];
+    };
+    /**
+     * IndexPrompts
+     * @description Custom prompts for various index types
+     */
+    IndexPrompts: {
+      /**
+       * Graph
+       * @description Custom prompt for graph/entity extraction
+       */
+      graph?: string | null;
+      /**
+       * Summary
+       * @description Custom prompt for document summarization
+       */
+      summary?: string | null;
+      /**
+       * Vision
+       * @description Custom prompt for image analysis
+       */
+      vision?: string | null;
+    };
+    /** Invitation */
+    Invitation: {
+      /**
+       * Email
+       * @description The email of the user
+       */
+      email?: string | null;
+      /**
+       * Token
+       * @description The token of the invitation
+       */
+      token?: string | null;
+      /**
+       * Created By
+       * @description The ID of the user who created the invitation
+       */
+      created_by?: string | null;
+      /**
+       * Created At
+       * @description The date and time the invitation was created
+       */
+      created_at?: string | null;
+      /**
+       * Is Valid
+       * @description Whether the invitation is valid
+       */
+      is_valid?: boolean | null;
+      /**
+       * Used At
+       * @description The date and time the invitation was used
+       */
+      used_at?: string | null;
+      /**
+       * Role
+       * @description The role of the user (admin, rw, ro)
+       */
+      role?: ('admin' | 'rw' | 'ro') | null;
+      /**
+       * Expires At
+       * @description The date and time the invitation will expire
+       */
+      expires_at?: string | null;
+    };
+    /** InvitationCreate */
+    InvitationCreate: {
+      /**
+       * Username
+       * @description The username of the user
+       */
+      username?: string | null;
+      /**
+       * Email
+       * @description The email of the user
+       */
+      email?: string | null;
+      /**
+       * Role
+       * @description The role of the user (admin, rw, ro)
+       */
+      role?: ('admin' | 'rw' | 'ro') | null;
+    };
+    /**
+     * InvitationList
+     * @description A list of invitations
+     */
+    InvitationList: {
+      /** Items */
+      items?: components['schemas']['Invitation'][] | null;
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** JudgeConfig */
+    JudgeConfig: {
+      /** @default exact_match */
+      mode: components['schemas']['EvaluationJudgeMode'];
+      /** Model Id */
+      model_id?: string | null;
+      /** Prompt Template */
+      prompt_template?: string | null;
+      /** Score Threshold */
+      score_threshold?: number | null;
+      /** Params */
+      params?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * KnowledgeGraph
+     * @description Knowledge graph containing nodes and edges
+     */
+    KnowledgeGraph: {
+      /**
+       * Nodes
+       * @description List of nodes in the knowledge graph
+       */
+      nodes: components['schemas']['GraphNode'][];
+      /**
+       * Edges
+       * @description List of edges in the knowledge graph
+       */
+      edges: components['schemas']['GraphEdge'][];
+      /**
+       * Is Truncated
+       * @description Whether the graph was truncated due to size limits
+       * @example false
+       */
+      is_truncated: boolean;
+    };
+    /**
+     * KnowledgeGraphConfig
+     * @description Configuration for knowledge graph generation
+     */
+    KnowledgeGraphConfig: {
+      /**
+       * Entity Types
+       * @description List of entity types to extract during graph indexing
+       * @example [
+       *       "人物",
+       *       "组织",
+       *       "疾病"
+       *     ]
+       */
+      entity_types?: string[];
+      /**
+       * Per Chunk Timeout Seconds
+       * @description Per-chunk LLM call timeout (seconds); the extractor uses 60s default if unset. Lift for slow / large-context multimodal models.
+       * @example 120
+       */
+      per_chunk_timeout_seconds?: number | null;
+      /**
+       * Max Entities Per Chunk
+       * @description Cap on entities the extractor accepts per chunk; default 32 if unset. Raise for entity-dense documents (legal / scientific).
+       * @example 64
+       */
+      max_entities_per_chunk?: number | null;
+      /**
+       * Max Relations Per Chunk
+       * @description Cap on relations the extractor accepts per chunk; default 32 if unset. Raise alongside max_entities for relation-dense docs.
+       * @example 64
+       */
+      max_relations_per_chunk?: number | null;
+      /**
+       * Graph Extraction Window Size
+       * @description Number of consecutive chunks to combine for one graph extraction LLM call; default 2 if unset (task #30 B3 sweet spot per earayu2 directive — Planetegg B2 full matrix shows window=2 cuts LLM calls 50% with ≤0.07 entity drop and +0.028 relation lift cross-model). Values above 1 only affect the graph index. Override per-collection: 1 for legacy/quality-priority, 5 for strong-model experiment (Gemini 2.5 Flash showed entity 0.947 at window=5).
+       * @example 2
+       */
+      graph_extraction_window_size?: number | null;
+      /**
+       * Graph Extraction Max Window Tokens
+       * @description Approximate maximum input tokens for one graph extraction window. If set, the window assembler starts a new window before this limit is exceeded.
+       * @example 2000
+       */
+      graph_extraction_max_window_tokens?: number | null;
+      /**
+       * Graph Extraction Max Prompt Tokens
+       * @description Defensive ceiling on the rendered graph-extraction prompt size (chars, treated as a 1:1 token proxy). Default 32000 if unset — windows that would render past this ceiling are skipped + warned so an over-eager graph_extraction_window_size config does not silently truncate the LLM input on the smallest model in the matrix. Override per-collection when a provider has a larger context window (Claude 200k / GPT-4 128k).
+       * @example 16000
+       */
+      graph_extraction_max_prompt_tokens?: number | null;
+      /**
+       * Graph Extraction Few Shot Locale
+       * @description Few-shot example locale for the graph extraction prompt. Default off (None) — enables the few-shot examples in the prompt template only when explicitly configured. Supported values: 'zh' (Chinese single-chunk example), 'en' (English single-chunk example), 'cross_chunk' (cross-chunk relation example). Adds ~400 prompt tokens when enabled.
+       * @example zh
+       */
+      graph_extraction_few_shot_locale?: string | null;
+    };
+    /** Login */
+    Login: {
+      /**
+       * Username
+       * @description The username of the user
+       */
+      username?: string | null;
+      /**
+       * Password
+       * @description The password of the user
+       */
+      password?: string | null;
+    };
+    /** Logto */
+    Logto: {
+      /** Auth Domain */
+      auth_domain?: string | null;
+      /** Auth App Id */
+      auth_app_id?: string | null;
+    };
+    /**
+     * MergeSuggestionsRequest
+     * @description Start a new graph-curation analysis run.
+     */
+    MergeSuggestionsRequest: Record<string, never>;
+    /**
+     * MergeSuggestionsResponse
+     * @description Latest persisted graph-curation run and its suggestions.
+     */
+    MergeSuggestionsResponse: {
+      /** @description Latest graph-curation run for this collection, if any */
+      run?: components['schemas']['GraphCurationRunSummary'] | null;
+      /**
+       * Suggestions
+       * @description Suggestions from the latest run, ordered by confidence score
+       */
+      suggestions: components['schemas']['GraphMergeSuggestionItem'][];
+    };
+    /**
+     * MergeSuggestionsRunResponse
+     * @description Response returned when starting a graph-curation run.
+     */
+    MergeSuggestionsRunResponse: {
+      run: components['schemas']['GraphCurationRunSummary'];
+      /**
+       * Started
+       * @description Whether a new run was actually scheduled
+       * @example true
+       */
+      started: boolean;
+      /**
+       * Message
+       * @description Human-readable status message
+       * @example Graph curation run started
+       */
+      message: string;
+    };
+    /**
+     * MineruTokenTestRequest
+     * @description Request body for POST /collections/test-mineru-token.
+     */
+    MineruTokenTestRequest: {
+      /**
+       * Token
+       * @description MinerU API token to validate
+       */
+      token: string;
+    };
+    /**
+     * MineruTokenTestResponse
+     * @description Response envelope for POST /collections/test-mineru-token.
+     *
+     *     `status_code` is the HTTP status returned by MinerU's upstream test endpoint;
+     *     `data` is the passthrough body echoed to the caller.
+     */
+    MineruTokenTestResponse: {
+      /**
+       * Status Code
+       * @description HTTP status code returned by MinerU upstream
+       */
+      status_code: number;
+      /**
+       * Data
+       * @description Passthrough body from MinerU upstream
+       */
+      data?: {
+        [key: string]: unknown;
+      };
+    };
+    /** Model */
+    Model: {
+      /** Id */
+      id?: string | null;
+      /** Account Id */
+      account_id: string;
+      /** Provider Model Id */
+      provider_model_id: string;
+      /** Display Name */
+      display_name: string;
+      capability: components['schemas']['ModelCapability'];
+      /** Runner Type */
+      runner_type: string;
+      /** Runner Config */
+      runner_config?: {
+        [key: string]: unknown;
+      };
+      /** Context Window */
+      context_window?: number | null;
+      /** Max Input Tokens */
+      max_input_tokens?: number | null;
+      /** Max Output Tokens */
+      max_output_tokens?: number | null;
+      /** Embedding Dimensions */
+      embedding_dimensions?: number | null;
+      /**
+       * Supports Vision
+       * @default false
+       */
+      supports_vision: boolean;
+      /**
+       * Supports Tool Calling
+       * @default false
+       */
+      supports_tool_calling: boolean;
+      /**
+       * Supports Multimodal Embedding
+       * @default false
+       */
+      supports_multimodal_embedding: boolean;
+      /**
+       * Status
+       * @default ACTIVE
+       * @enum {string}
+       */
+      status: 'ACTIVE' | 'INACTIVE';
+      /** Allowed Scenarios */
+      allowed_scenarios?: components['schemas']['ModelUseScenario'][];
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** ModelAccount */
+    ModelAccount: {
+      /** Id */
+      id?: string | null;
+      /** User Id */
+      user_id?: string | null;
+      /** Provider Type */
+      provider_type: string;
+      /** Name */
+      name: string;
+      /** Display Name */
+      display_name: string;
+      /** Base Url */
+      base_url: string;
+      /**
+       * Status
+       * @default ACTIVE
+       * @enum {string}
+       */
+      status: 'ACTIVE' | 'INACTIVE';
+      /** Auth Config */
+      auth_config?: {
+        [key: string]: unknown;
+      };
+      /** Last Validated At */
+      last_validated_at?: string | null;
+      /** Validation Error */
+      validation_error?: string | null;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** ModelAccountCreate */
+    ModelAccountCreate: {
+      /** Provider Type */
+      provider_type: string;
+      /** Name */
+      name: string;
+      /** Display Name */
+      display_name: string;
+      /** Base Url */
+      base_url: string;
+      /** Api Key */
+      api_key: string;
+      /** Auth Config */
+      auth_config?: {
+        [key: string]: unknown;
+      };
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+    };
+    /** ModelAccountList */
+    ModelAccountList: {
+      /** Items */
+      items?: components['schemas']['ModelAccount'][];
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** ModelAccountUpdate */
+    ModelAccountUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Display Name */
+      display_name?: string | null;
+      /** Base Url */
+      base_url?: string | null;
+      /** Api Key */
+      api_key?: string | null;
+      /** Auth Config */
+      auth_config?: {
+        [key: string]: unknown;
+      } | null;
+      /** Status */
+      status?: ('ACTIVE' | 'INACTIVE') | null;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * ModelCapability
+     * @enum {string}
+     */
+    ModelCapability: 'chat' | 'completion' | 'embedding';
+    /** ModelCreate */
+    ModelCreate: {
+      /** Account Id */
+      account_id: string;
+      /** Provider Model Id */
+      provider_model_id: string;
+      /** Display Name */
+      display_name: string;
+      capability: components['schemas']['ModelCapability'];
+      /** Runner Type */
+      runner_type?: string | null;
+      /** Runner Config */
+      runner_config?: {
+        [key: string]: unknown;
+      };
+      /** Context Window */
+      context_window?: number | null;
+      /** Max Input Tokens */
+      max_input_tokens?: number | null;
+      /** Max Output Tokens */
+      max_output_tokens?: number | null;
+      /** Embedding Dimensions */
+      embedding_dimensions?: number | null;
+      /**
+       * Supports Vision
+       * @default false
+       */
+      supports_vision: boolean;
+      /**
+       * Supports Tool Calling
+       * @default false
+       */
+      supports_tool_calling: boolean;
+      /**
+       * Supports Multimodal Embedding
+       * @default false
+       */
+      supports_multimodal_embedding: boolean;
+      /** Allowed Scenarios */
+      allowed_scenarios?: components['schemas']['ModelUseScenario'][] | null;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+    };
+    /** ModelList */
+    ModelList: {
+      /** Items */
+      items?: components['schemas']['Model'][];
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /** ModelProvider */
+    ModelProvider: {
+      /** Id */
+      id?: string | null;
+      /** Provider Type */
+      provider_type: string;
+      /** Display Name */
+      display_name: string;
+      /** Description */
+      description?: string | null;
+      /** Supported Capabilities */
+      supported_capabilities?: components['schemas']['ModelCapability'][];
+      /** Account Schema */
+      account_schema?: {
+        [key: string]: unknown;
+      };
+      /** Default Base Url */
+      default_base_url?: string | null;
+      /**
+       * Enabled
+       * @default true
+       */
+      enabled: boolean;
+      /**
+       * Sort Order
+       * @default 0
+       */
+      sort_order: number;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** ModelProviderList */
+    ModelProviderList: {
+      /** Items */
+      items?: components['schemas']['ModelProvider'][];
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /**
+     * ModelSpec
+     * @description Inline model spec embedded in collection / bot config blobs.
+     *
+     *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
+     *     (collections / bots already in the DB, plus any external clients
+     *     that hand-build the JSON) wrote ``{model, model_service_provider,
+     *     custom_llm_provider}`` instead. Pydantic silently dropped those
+     *     extras after the schema cut, so existing rows would parse with
+     *     ``model_id=None`` and the runtime resolver would 404. Per Weston
+     *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
+     *     legacy triple is present, it is stashed on the private
+     *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
+     *     runtime resolves it to a real ``model_id`` (see
+     *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
+     */
+    'ModelSpec-Input': {
+      /**
+       * Model Id
+       * @description ApeRAG model id to use
+       * @example mdl_default_chat
+       */
+      model_id?: string | null;
+      /**
+       * Temperature
+       * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
+       * @default 0.1
+       * @example 0.1
+       */
+      temperature: number | null;
+      /**
+       * Max Tokens
+       * @description Maximum number of tokens to generate
+       * @example 4096
+       */
+      max_tokens?: number | null;
+      /**
+       * Max Completion Tokens
+       * @description Upper bound for generated completion tokens, including visible and reasoning tokens
+       * @example 4096
+       */
+      max_completion_tokens?: number | null;
+      /**
+       * Timeout
+       * @description Maximum execution time in seconds for the API request
+       */
+      timeout?: number | null;
+      /**
+       * Top N
+       * @description Number of top results to return
+       */
+      top_n?: number | null;
+      /**
+       * Tags
+       * @description Tags for model categorization
+       * @default []
+       * @example [
+       *       "free",
+       *       "recommend"
+       *     ]
+       */
+      tags: string[] | null;
+      /** Legacy Model */
+      legacy_model?: string | null;
+      /** Legacy Provider */
+      legacy_provider?: string | null;
+      /** Legacy Custom Llm Provider */
+      legacy_custom_llm_provider?: string | null;
+    };
+    /**
+     * ModelSpec
+     * @description Inline model spec embedded in collection / bot config blobs.
+     *
+     *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
+     *     (collections / bots already in the DB, plus any external clients
+     *     that hand-build the JSON) wrote ``{model, model_service_provider,
+     *     custom_llm_provider}`` instead. Pydantic silently dropped those
+     *     extras after the schema cut, so existing rows would parse with
+     *     ``model_id=None`` and the runtime resolver would 404. Per Weston
+     *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
+     *     legacy triple is present, it is stashed on the private
+     *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
+     *     runtime resolves it to a real ``model_id`` (see
+     *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
+     */
+    'ModelSpec-Output': {
+      /**
+       * Model Id
+       * @description ApeRAG model id to use
+       * @example mdl_default_chat
+       */
+      model_id?: string | null;
+      /**
+       * Temperature
+       * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
+       * @default 0.1
+       * @example 0.1
+       */
+      temperature: number | null;
+      /**
+       * Max Tokens
+       * @description Maximum number of tokens to generate
+       * @example 4096
+       */
+      max_tokens?: number | null;
+      /**
+       * Max Completion Tokens
+       * @description Upper bound for generated completion tokens, including visible and reasoning tokens
+       * @example 4096
+       */
+      max_completion_tokens?: number | null;
+      /**
+       * Timeout
+       * @description Maximum execution time in seconds for the API request
+       */
+      timeout?: number | null;
+      /**
+       * Top N
+       * @description Number of top results to return
+       */
+      top_n?: number | null;
+      /**
+       * Tags
+       * @description Tags for model categorization
+       * @default []
+       * @example [
+       *       "free",
+       *       "recommend"
+       *     ]
+       */
+      tags: string[] | null;
+    };
+    /** ModelUpdate */
+    ModelUpdate: {
+      /** Display Name */
+      display_name?: string | null;
+      capability?: components['schemas']['ModelCapability'] | null;
+      /** Runner Type */
+      runner_type?: string | null;
+      /** Runner Config */
+      runner_config?: {
+        [key: string]: unknown;
+      } | null;
+      /** Context Window */
+      context_window?: number | null;
+      /** Max Input Tokens */
+      max_input_tokens?: number | null;
+      /** Max Output Tokens */
+      max_output_tokens?: number | null;
+      /** Embedding Dimensions */
+      embedding_dimensions?: number | null;
+      /** Supports Vision */
+      supports_vision?: boolean | null;
+      /** Supports Tool Calling */
+      supports_tool_calling?: boolean | null;
+      /** Supports Multimodal Embedding */
+      supports_multimodal_embedding?: boolean | null;
+      /** Status */
+      status?: ('ACTIVE' | 'INACTIVE') | null;
+      /** Allowed Scenarios */
+      allowed_scenarios?: components['schemas']['ModelUseScenario'][] | null;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /** ModelUse */
+    ModelUse: {
+      /** Id */
+      id?: string | null;
+      /** User Id */
+      user_id?: string | null;
+      scenario: components['schemas']['ModelUseScenario'];
+      capability: components['schemas']['ModelCapability'];
+      /** @default single */
+      strategy: components['schemas']['ModelUseStrategy'];
+      /** Primary Model Id */
+      primary_model_id?: string | null;
+      /** Fallback Model Ids */
+      fallback_model_ids?: string[];
+      /**
+       * Enabled
+       * @default true
+       */
+      enabled: boolean;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** ModelUseList */
+    ModelUseList: {
+      /** Items */
+      items?: components['schemas']['ModelUse'][];
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /**
+     * ModelUseScenario
+     * @enum {string}
+     */
+    ModelUseScenario:
+      | 'agent_chat'
+      | 'collection_completion'
+      | 'collection_embedding'
+      | 'background_task';
+    /**
+     * ModelUseStrategy
+     * @enum {string}
+     */
+    ModelUseStrategy: 'single' | 'fallback';
+    /** ModelUseUpdate */
+    ModelUseUpdate: {
+      /** Primary Model Id */
+      primary_model_id?: string | null;
+      /** Fallback Model Ids */
+      fallback_model_ids?: string[];
+      /** @default single */
+      strategy: components['schemas']['ModelUseStrategy'];
+      /**
+       * Enabled
+       * @default true
+       */
+      enabled: boolean;
+      /** Extra */
+      extra?: {
+        [key: string]: unknown;
+      };
+    };
+    /** ModelValidationResponse */
+    ModelValidationResponse: {
+      /** Ok */
+      ok: boolean;
+      /** Message */
+      message?: string | null;
+    };
+    /** OpenAIChatCompletionChoice */
+    OpenAIChatCompletionChoice: {
+      /** Index */
+      index: number;
+      message: components['schemas']['OpenAIChatCompletionMessage'];
+      /** Finish Reason */
+      finish_reason?: string | null;
+    };
+    /** OpenAIChatCompletionMessage */
+    OpenAIChatCompletionMessage: {
+      /**
+       * Role
+       * @constant
+       */
+      role: 'assistant';
+      /** Content */
+      content: string;
+    };
+    /** OpenAIChatCompletionResponse */
+    OpenAIChatCompletionResponse: {
+      /** Id */
+      id: string;
+      /**
+       * Object
+       * @constant
+       */
+      object: 'chat.completion';
+      /** Created */
+      created: number;
+      /** Model */
+      model: string;
+      /** Choices */
+      choices: components['schemas']['OpenAIChatCompletionChoice'][];
+      usage: components['schemas']['OpenAIChatCompletionUsage'];
+    };
+    /** OpenAIChatCompletionUsage */
+    OpenAIChatCompletionUsage: {
+      /** Prompt Tokens */
+      prompt_tokens: number;
+      /** Completion Tokens */
+      completion_tokens: number;
+      /** Total Tokens */
+      total_tokens: number;
+    };
+    /** OpenAIErrorDetail */
+    OpenAIErrorDetail: {
+      /** Message */
+      message: string;
+      /** Type */
+      type: string;
+      /** Code */
+      code: string;
+    };
+    /** OpenAIErrorResponse */
+    OpenAIErrorResponse: {
+      error: components['schemas']['OpenAIErrorDetail'];
+    };
+    /** PageLocation */
+    PageLocation: {
+      /**
+       * Type
+       * @default page_location
+       * @constant
+       */
+      type: 'page_location';
+      /** Doc Index */
+      doc_index: number;
+      /** Doc Title */
+      doc_title?: string | null;
+      /** Page Index */
+      page_index: number;
+    };
+    /**
+     * PageResult
+     * @description PageResult info (deprecated, use paginatedResponse instead)
+     */
+    PageResult: {
+      /**
+       * Page Number
+       * @description The page number
+       */
+      page_number?: number | null;
+      /**
+       * Page Size
+       * @description The page size
+       */
+      page_size?: number | null;
+      /**
+       * Count
+       * @description The total count of items
+       */
+      count?: number | null;
+    };
+    /** ParserHealthItem */
+    ParserHealthItem: {
+      /** Key */
+      key: string;
+      /** Label */
+      label: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'ok' | 'warning' | 'error' | 'disabled';
+      /** Detail */
+      detail: string;
+    };
+    /** ParserHealthReport */
+    ParserHealthReport: {
+      /** Default Parser */
+      default_parser: string;
+      /** Parser Order */
+      parser_order?: string[];
+      /** Available Extensions */
+      available_extensions?: string[];
+      /** Dependencies */
+      dependencies?: components['schemas']['ParserHealthItem'][];
+      /** Services */
+      services?: components['schemas']['ParserHealthItem'][];
+      /** Support Tiers */
+      support_tiers?: components['schemas']['ParserSupportTier'][];
+      /** Warnings */
+      warnings?: string[];
+      /** Recommendations */
+      recommendations?: string[];
+    };
+    /** ParserSupportTier */
+    ParserSupportTier: {
+      /** Key */
+      key: string;
+      /** Label */
+      label: string;
+      /**
+       * Category
+       * @enum {string}
+       */
+      category: 'official' | 'conditional' | 'enhanced' | 'optional';
+      /** Parser */
+      parser: string;
+      /** Formats */
+      formats?: string[];
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'available' | 'limited' | 'unavailable' | 'disabled';
+      /** Detail */
+      detail: string;
+      /** Requirements */
+      requirements?: string[];
+    };
+    /** PreviewRequest */
+    PreviewRequest: {
+      /** Template */
+      template: string;
+      /** Variables */
+      variables?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /** PromptsPayload */
+    PromptsPayload: {
+      /**
+       * Agent System
+       * @description Agent system prompt (persona definition)
+       */
+      agent_system?: string | null;
+      /**
+       * Agent Query
+       * @description Agent query prompt template
+       */
+      agent_query?: string | null;
+      /**
+       * Index Graph
+       * @description Graph index prompt for entity/relation extraction
+       */
+      index_graph?: string | null;
+      /**
+       * Index Summary
+       * @description Summary index prompt for document summarization
+       */
+      index_summary?: string | null;
+      /**
+       * Index Vision
+       * @description Vision index prompt for image content extraction
+       */
+      index_vision?: string | null;
+    };
+    /**
+     * QuotaInfo
+     * @description Quota information for a specific quota type
+     */
+    QuotaInfo: {
+      /**
+       * Quota Type
+       * @description Type of quota
+       * @example max_collection_count
+       */
+      quota_type: string;
+      /**
+       * Quota Limit
+       * @description Maximum allowed usage
+       * @example 10
+       */
+      quota_limit: number;
+      /**
+       * Current Usage
+       * @description Current usage count
+       * @example 3
+       */
+      current_usage: number;
+      /**
+       * Remaining
+       * @description Remaining quota available
+       * @example 7
+       */
+      remaining: number;
+    };
+    /**
+     * QuotaUpdateRequest
+     * @description Request to update user quotas (supports both single and batch updates)
+     */
+    QuotaUpdateRequest: {
+      /**
+       * Max Collection Count
+       * @description New limit for collection count
+       */
+      max_collection_count?: number | null;
+      /**
+       * Max Document Count
+       * @description New limit for document count
+       */
+      max_document_count?: number | null;
+      /**
+       * Max Document Count Per Collection
+       * @description New limit for documents per collection
+       */
+      max_document_count_per_collection?: number | null;
+      /**
+       * Max Bot Count
+       * @description New limit for bot count
+       */
+      max_bot_count?: number | null;
+    };
+    /**
+     * QuotaUpdateResponse
+     * @description Response after updating user quotas (supports both single and batch updates)
+     */
+    QuotaUpdateResponse: {
+      /**
+       * Success
+       * @description Whether the update was successful
+       * @example true
+       */
+      success: boolean;
+      /**
+       * Message
+       * @description Status message
+       * @example Quotas updated successfully
+       */
+      message: string;
+      /**
+       * User Id
+       * @description User ID that was updated
+       * @example user123
+       */
+      user_id: string;
+      /**
+       * Updated Quotas
+       * @description List of updated quotas
+       */
+      updated_quotas: components['schemas']['UpdatedQuota'][];
+    };
+    /**
+     * ReasoningPart
+     * @description Persisted multi-step reasoning text the model emitted between
+     *     tool calls — the "how the agent got there" trace, distinct from
+     *     :class:`TextPart` (final answer body).
+     *
+     *     Architect ratify msg=2639aeea: separate first-class type vs reusing
+     *     ``TextPart`` with a ``role`` meta field. Keeping reasoning as its
+     *     own type makes downstream serialisation / aggregation / UI
+     *     rendering unambiguous (a reader can tell "this is reasoning" vs
+     *     "this is the final answer" by ``type`` alone).
+     *
+     *     ``transient=False`` (default) so reasoning survives reload — Wave 8
+     *     D8.6 chunk-3 design originally pinned reasoning as fully transient
+     *     via :class:`DataActivityPart`, but earayu2 explicitly asked for
+     *     Claude-style chronological timeline (思考1 → 工具a → 思考2 → 工具b
+     *     → 最终回答) so persistence is the canonical user-priority amend.
+     *
+     *     Length cap: ``MAX_REASONING_PART_CHARS`` per part — the runtime
+     *     opens a new ReasoningPart when the buffer fills OR when a tool
+     *     call interrupts, giving the chronological chunking the FE renders
+     *     as discrete thinking blocks interleaved with tool actions.
+     */
+    ReasoningPart: {
+      /**
+       * Type
+       * @default reasoning
+       * @constant
+       */
+      type: 'reasoning';
+      /** Text */
+      text: string;
+    };
+    /** RebuildIndexesRequest */
+    RebuildIndexesRequest: {
+      /**
+       * Index Types
+       * @description Types of indexes to rebuild
+       */
+      index_types: ('VECTOR' | 'FULLTEXT' | 'GRAPH' | 'SUMMARY' | 'VISION')[];
+    };
+    /** RebuildIndexesResponse */
+    RebuildIndexesResponse: {
+      /**
+       * Code
+       * @description Result code
+       * @example 200
+       */
+      code: string;
+      /**
+       * Message
+       * @description Human-readable rebuild status
+       */
+      message: string;
+      /**
+       * Affected Documents
+       * @description Number of documents affected by a collection-level rebuild
+       */
+      affected_documents?: number | null;
+    };
+    /**
+     * Register
+     * @description The email of the user
+     */
+    Register: {
+      /**
+       * Token
+       * @description The invitation token
+       */
+      token?: string | null;
+      /**
+       * Email
+       * @description The email of the user
+       */
+      email?: string | null;
+      /**
+       * Username
+       * @description The username of the user
+       */
+      username?: string | null;
+      /**
+       * Password
+       * @description The password of the user
+       */
+      password?: string | null;
+    };
+    /** ResetPromptsRequest */
+    ResetPromptsRequest: {
+      /**
+       * Types
+       * @description Prompt types to reset, omit to reset all
+       */
+      types?: string[] | null;
+    };
+    /**
+     * SearchRequest
+     * @description Search request
+     */
+    SearchRequest: {
+      /** Query */
+      query?: string | null;
+      vector_search?: components['schemas']['VectorSearchParams'] | null;
+      fulltext_search?: components['schemas']['FulltextSearchParams'] | null;
+      graph_search?: components['schemas']['GraphSearchParams'] | null;
+      summary_search?: components['schemas']['SummarySearchParams'] | null;
+      vision_search?: components['schemas']['VisionSearchParams'] | null;
+      /**
+       * Save To History
+       * @description Whether to save search result to database history
+       * @default false
+       * @example true
+       */
+      save_to_history: boolean | null;
+    };
+    /** SearchResult */
+    SearchResult: {
+      /**
+       * Id
+       * @description The id of the search result
+       */
+      id?: string | null;
+      /** Query */
+      query?: string | null;
+      vector_search?: components['schemas']['VectorSearchParams'] | null;
+      fulltext_search?: components['schemas']['FulltextSearchParams'] | null;
+      graph_search?: components['schemas']['GraphSearchParams'] | null;
+      summary_search?: components['schemas']['SummarySearchParams'] | null;
+      vision_search?: components['schemas']['VisionSearchParams'] | null;
+      /** Items */
+      items?: components['schemas']['SearchResultItem'][] | null;
+      /**
+       * Created
+       * @description The creation time of the search result
+       */
+      created?: string | null;
+    };
+    /** SearchResultItem */
+    SearchResultItem: {
+      /**
+       * Rank
+       * @description Result rank
+       */
+      rank?: number | null;
+      /**
+       * Score
+       * @description Result score
+       */
+      score?: number | null;
+      /**
+       * Content
+       * @description Result content
+       */
+      content?: string | null;
+      /**
+       * Source
+       * @description Source document or metadata
+       */
+      source?: string | null;
+      /**
+       * Recall Type
+       * @description Recall type
+       */
+      recall_type?:
+        | (
+            | 'vector_search'
+            | 'graph_search'
+            | 'fulltext_search'
+            | 'summary_search'
+            | 'vision_search'
+          )
+        | null;
+      /** @description Public metadata of the result */
+      metadata?: components['schemas']['SearchResultMetadata'] | null;
+    };
+    /**
+     * SearchResultList
+     * @description A list of search results
+     */
+    SearchResultList: {
+      /** Items */
+      items?: components['schemas']['SearchResult'][] | null;
+    };
+    /**
+     * SearchResultMetadata
+     * @description Public metadata carried by search result items.
+     *
+     *     This intentionally allow-lists fields needed by clients and excludes raw
+     *     index/storage metadata such as indexer, index_method, chat_id, object_path,
+     *     and embedded node payloads.
+     */
+    SearchResultMetadata: {
+      /**
+       * Source
+       * @description Display source for the result
+       */
+      source?: string | null;
+      /**
+       * Title
+       * @description Human-readable title when available
+       */
+      title?: string | null;
+      /**
+       * Collection Id
+       * @description Collection identifier for client follow-up actions
+       */
+      collection_id?: string | null;
+      /**
+       * Document Id
+       * @description Document identifier for client follow-up actions
+       */
+      document_id?: string | null;
+      /**
+       * Chunk Id
+       * @description Indexing-layer chunk identifier for follow-up `read_document_chunk` calls (D10 §A.9 R1 LOCKED handle).
+       */
+      chunk_id?: string | null;
+      /**
+       * Section Path
+       * @description Slash-separated section path for follow-up `read_document_section` calls (D10 §A.9 R1 LOCKED handle).
+       */
+      section_path?: string | null;
+      /**
+       * Heading Anchor
+       * @description Slug-style heading anchor (e.g. '#chapter-2-implementation') alternative to section_path (D10 §A.9 R1 LOCKED handle).
+       */
+      heading_anchor?: string | null;
+      /**
+       * Asset Id
+       * @description Asset identifier for image or binary references
+       */
+      asset_id?: string | null;
+      /**
+       * Mimetype
+       * @description Asset MIME type when the result references an asset
+       */
+      mimetype?: string | null;
+      /**
+       * Page Idx
+       * @description Zero-based page index when available
+       */
+      page_idx?: number | null;
+      /**
+       * Url
+       * @description External source URL when available
+       */
+      url?: string | null;
+      /**
+       * Modality
+       * @description Public content modality
+       */
+      modality?: ('text' | 'image') | null;
+      /**
+       * Parse Version
+       * @description Indexing-layer parse_version that produced this hit (§G.5). Lets agents detect mixed-version results across modalities in one response and reason about the §F.4 inconsistency window.
+       */
+      parse_version?: string | null;
+      /**
+       * Index Modality
+       * @description Indexer modality that served this hit (§G.5). Named ``index_modality`` to disambiguate from the D10.h-locked content-shape ``modality`` field above; the design pack §G.5 uses bare ``modality`` but the existing public surface already binds that name to the content shape.
+       */
+      index_modality?:
+        | ('vector' | 'fulltext' | 'graph' | 'summary' | 'vision')
+        | null;
+      /**
+       * Index State Per Modality
+       * @description Per-modality index state for the document this hit belongs to (§G.5). Keys: ``vector`` / ``fulltext`` / ``graph`` / ``summary`` / ``vision``. Values: ``ACTIVE`` / ``FAILED`` / ``NOT_ENABLED`` / ``INDEXING``. Clients can skip a modality currently FAILED or decide whether to wait + retry vs proceed with partial coverage.
+       */
+      index_state_per_modality?: {
+        [key: string]: 'ACTIVE' | 'FAILED' | 'NOT_ENABLED' | 'INDEXING';
+      } | null;
+    };
+    /**
+     * Settings
+     * @description Knowledge-base parser settings request/response schema.
+     *
+     *     Carved here from ``aperag.schema.view_models.Settings`` in #48 (G2)
+     *     so the knowledge_base domain owns the shape directly and does not
+     *     depend on the legacy aggregate ``aperag.schema.view_models``.
+     */
+    Settings: {
+      /**
+       * Use Mineru
+       * @description Whether to use MinerU
+       */
+      use_mineru?: boolean | null;
+      /**
+       * Mineru Api Token
+       * @description API token for MinerU
+       */
+      mineru_api_token?: string | null;
+      /**
+       * Use Markitdown
+       * @description Whether to use MarkItDown
+       */
+      use_markitdown?: boolean | null;
+    };
+    /**
+     * SharedCollection
+     * @description Shared Collection information for marketplace users
+     */
+    SharedCollection: {
+      /**
+       * Id
+       * @description Collection ID
+       */
+      id: string;
+      /**
+       * Title
+       * @description Collection title
+       */
+      title: string;
+      /**
+       * Description
+       * @description Collection description
+       */
+      description?: string | null;
+      /**
+       * Owner User Id
+       * @description Original owner user ID
+       */
+      owner_user_id: string;
+      /**
+       * Owner Username
+       * @description Original owner username
+       */
+      owner_username?: string | null;
+      /**
+       * Subscription Id
+       * @description Subscription record ID (has value if subscribed, null if not subscribed)
+       */
+      subscription_id?: string | null;
+      /**
+       * Gmt Subscribed
+       * @description Subscription time (only has value when subscribed)
+       */
+      gmt_subscribed?: string | null;
+      /**
+       * Subscription Count
+       * @description Total number of subscriptions
+       */
+      subscription_count: number;
+      /** @description Collection configuration settings */
+      config: components['schemas']['SharedCollectionConfig'];
+    };
+    /**
+     * SharedCollectionConfig
+     * @description Configuration settings for shared collection features
+     */
+    SharedCollectionConfig: {
+      /**
+       * Enable Vector
+       * @description Whether vector search is enabled
+       */
+      enable_vector: boolean;
+      /**
+       * Enable Fulltext
+       * @description Whether fulltext search is enabled
+       */
+      enable_fulltext: boolean;
+      /**
+       * Enable Knowledge Graph
+       * @description Whether knowledge graph is enabled
+       */
+      enable_knowledge_graph: boolean;
+      /**
+       * Enable Summary
+       * @description Whether summary generation is enabled
+       */
+      enable_summary: boolean;
+      /**
+       * Enable Vision
+       * @description Whether vision processing is enabled
+       */
+      enable_vision: boolean;
+    };
+    /**
+     * SharedCollectionList
+     * @description Shared Collection list response
+     */
+    SharedCollectionList: {
+      /**
+       * Items
+       * @description List of shared Collections
+       */
+      items: components['schemas']['SharedCollection'][];
+      /**
+       * Total
+       * @description Total count (for pagination)
+       */
+      total: number;
+      /**
+       * Page
+       * @description Current page number
+       */
+      page: number;
+      /**
+       * Page Size
+       * @description Page size
+       */
+      page_size: number;
+    };
+    /**
+     * SharingStatusResponse
+     * @description Marketplace sharing status envelope for a KB collection.
+     *
+     *     Phase 4 may re-home this class to a marketplace schemas module when
+     *     that domain materializes; for now it lives in KB because the owning
+     *     route (``GET /collections/{id}/sharing``) is a KB route.
+     */
+    SharingStatusResponse: {
+      /**
+       * Is Published
+       * @description Whether published to marketplace
+       */
+      is_published: boolean;
+      /**
+       * Published At
+       * @description Publication time, null when not published
+       */
+      published_at?: string | null;
+    };
+    /** SourceDocumentPart */
+    SourceDocumentPart: {
+      /**
+       * Type
+       * @default source-document
+       * @constant
+       */
+      type: 'source-document';
+      /** Sourceid */
+      sourceId: string;
+      /** Mediatype */
+      mediaType: string;
+      /** Title */
+      title: string;
+    };
+    /** SourceUrlPart */
+    SourceUrlPart: {
+      /**
+       * Type
+       * @default source-url
+       * @constant
+       */
+      type: 'source-url';
+      /** Sourceid */
+      sourceId: string;
+      /** Url */
+      url: string;
+      /** Title */
+      title?: string | null;
+    };
+    /** StagedDocumentsResponse */
+    StagedDocumentsResponse: {
+      /**
+       * Documents
+       * @description List of staged (UPLOADED) documents awaiting confirmation
+       */
+      documents: components['schemas']['UploadDocumentResponse'][];
+      /**
+       * Total
+       * @description Total number of staged documents
+       */
+      total: number;
+    };
+    /**
+     * SuggestionActionMergeResult
+     * @description Merge result returned when accepting a graph-curation suggestion.
+     */
+    SuggestionActionMergeResult: {
+      /**
+       * Target Entity Id
+       * @description Surviving entity ID after merge
+       * @example e_moxiangju
+       */
+      target_entity_id: string;
+      /**
+       * Merged Source Ids
+       * @description Merged-away entity IDs
+       * @example [
+       *       "e_old_bookstore"
+       *     ]
+       */
+      merged_source_ids: string[];
+      /**
+       * Description
+       * @description Merged description of the surviving entity
+       */
+      description: string;
+      /**
+       * Source Chunk Ids
+       * @description Source chunk IDs preserved on the surviving entity
+       * @example [
+       *       "chunk_1",
+       *       "chunk_8"
+       *     ]
+       */
+      source_chunk_ids: string[];
+      /**
+       * Edges Redirected
+       * @description Number of redirected edges
+       * @example 5
+       */
+      edges_redirected: number;
+      /**
+       * Edges Collapsed
+       * @description Number of duplicate edges collapsed
+       * @example 2
+       */
+      edges_collapsed: number;
+    };
+    /**
+     * SuggestionActionRequest
+     * @description Request to take action on a merge suggestion
+     */
+    SuggestionActionRequest: {
+      /**
+       * Action
+       * @description Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'dismiss')
+       * @example accept
+       * @enum {string}
+       */
+      action: 'accept' | 'reject' | 'dismiss';
+    };
+    /**
+     * SuggestionActionResponse
+     * @description Response containing suggestion action results
+     */
+    SuggestionActionResponse: {
+      /**
+       * Status
+       * @description Status of the action operation
+       * @example success
+       * @enum {string}
+       */
+      status: 'success' | 'error';
+      /**
+       * Message
+       * @description Detailed message about the action operation
+       * @example Suggestion msug123 has been accepted and merge completed
+       */
+      message: string;
+      /**
+       * Suggestion Id
+       * @description The suggestion ID that was processed
+       * @example msug123
+       */
+      suggestion_id: string;
+      /**
+       * Action
+       * @description The action that was performed (normalized to lowercase)
+       * @example accept
+       * @enum {string}
+       */
+      action: 'accept' | 'reject' | 'dismiss';
+      /**
+       * Suggestion Status
+       * @description Suggestion status after action processing
+       * @example ACCEPTED
+       * @enum {string}
+       */
+      suggestion_status:
+        | 'PENDING'
+        | 'APPLY_PENDING'
+        | 'APPLYING'
+        | 'APPLIED'
+        | 'APPLY_FAILED'
+        | 'ACCEPTED'
+        | 'REJECTED'
+        | 'DISMISSED'
+        | 'EXPIRED'
+        | 'SUPERSEDED';
+      /** @description Merge operation result (only present when action is 'accept') */
+      merge_result?:
+        | components['schemas']['SuggestionActionMergeResult']
+        | null;
+    };
+    /** SummarySearchParams */
+    SummarySearchParams: {
+      /**
+       * Topk
+       * @description Top K results
+       */
+      topk?: number | null;
+      /**
+       * Similarity
+       * @description Similarity threshold
+       */
+      similarity?: number | null;
+    };
+    /**
+     * SystemDefaultQuotas
+     * @description System default quota configuration
+     */
+    SystemDefaultQuotas: {
+      /**
+       * Max Collection Count
+       * @description Default maximum collection count
+       * @example 20
+       */
+      max_collection_count: number;
+      /**
+       * Max Document Count
+       * @description Default maximum document count
+       * @example 4000
+       */
+      max_document_count: number;
+      /**
+       * Max Document Count Per Collection
+       * @description Default maximum documents per collection
+       * @example 200
+       */
+      max_document_count_per_collection: number;
+      /**
+       * Max Bot Count
+       * @description Default maximum bot count
+       * @example 10
+       */
+      max_bot_count: number;
+    };
+    /**
+     * SystemDefaultQuotasResponse
+     * @description Response containing system default quotas
+     */
+    SystemDefaultQuotasResponse: {
+      quotas: components['schemas']['SystemDefaultQuotas'];
+    };
+    /**
+     * SystemDefaultQuotasUpdateRequest
+     * @description Request to update system default quotas
+     */
+    SystemDefaultQuotasUpdateRequest: {
+      quotas: components['schemas']['SystemDefaultQuotas'];
+    };
+    /**
+     * SystemDefaultQuotasUpdateResponse
+     * @description Response after updating system default quotas
+     */
+    SystemDefaultQuotasUpdateResponse: {
+      /**
+       * Success
+       * @description Whether the update was successful
+       * @example true
+       */
+      success: boolean;
+      /**
+       * Message
+       * @description Status message
+       * @example System default quotas updated successfully
+       */
+      message: string;
+      quotas: components['schemas']['SystemDefaultQuotas'];
+    };
+    /**
+     * TextPart
+     * @description Plain assistant / user text content.
+     */
+    TextPart: {
+      /**
+       * Type
+       * @default text
+       * @constant
+       */
+      type: 'text';
+      /** Text */
+      text: string;
+    };
+    /** TitleGenerateRequest */
+    TitleGenerateRequest: {
+      /**
+       * Max Length
+       * @description Maximum length of the generated title
+       * @default 20
+       */
+      max_length: number | null;
+      /**
+       * Language
+       * @description Language for the title generation (IETF BCP 47 tag)
+       * @default zh-CN
+       */
+      language: ('zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR') | null;
+      /**
+       * Turns
+       * @description Number of most recent conversation turns to consider
+       * @default 1
+       */
+      turns: number | null;
+    };
+    /** TitleGenerateResponse */
+    TitleGenerateResponse: {
+      /**
+       * Title
+       * @description Generated title string
+       */
+      title: string;
+    };
+    /** ToolConsentData */
+    ToolConsentData: {
+      /** Toolcallid */
+      toolCallId: string;
+      /** Toolname */
+      toolName: string;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      };
+      /** Argspreview */
+      argsPreview: string;
+      /** Argshash */
+      argsHash: string;
+      /**
+       * Risk
+       * @enum {string}
+       */
+      risk:
+        | 'writes_user_data'
+        | 'calls_external_api'
+        | 'modifies_system'
+        | 'admin_only';
+      /** Requestedat */
+      requestedAt: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: 'pending' | 'approved' | 'denied' | 'expired';
+    };
+    /**
+     * ToolPart
+     * @description AI SDK v5 consolidated tool-call part (D8 §2.4 / D9 §A1+§A6).
+     *
+     *     The ``type`` discriminator carries the ``SafeToolName`` directly
+     *     (e.g. ``tool-aperag_knowledge_base_search_collection``); MCP server /
+     *     tool identity lives in ``metadata``. This matches the AI SDK v5
+     *     *at-rest* shape (one consolidated tool part per call, lifecycle
+     *     captured in ``state``) — not the *wire* shape, which is a sequence
+     *     of ``tool-input-*`` / ``tool-output-*`` events emitted by #73 and
+     *     collapsed by the FE consumer into this consolidated form.
+     *
+     *     SafeToolName resolution (raw MCP name → ``tool-<safeName>``) is
+     *     #75's responsibility (``aperag.domains.agent_runtime.tools``);
+     *     storage only enforces that the caller has already produced a
+     *     canonical ``type`` string.
+     */
+    ToolPart: {
+      /** Type */
+      type: string;
+      /** Toolcallid */
+      toolCallId: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state:
+        | 'input-streaming'
+        | 'input-available'
+        | 'output-available'
+        | 'output-error';
+      /** Input */
+      input?: unknown | null;
+      /** Output */
+      output?: unknown | null;
+      /** Errortext */
+      errorText?: string | null;
+      /** Summary */
+      summary?: string | null;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      };
+    };
+    /** TurnFeedback */
+    TurnFeedback: {
+      /** Turn Id */
+      turn_id: string;
+      /**
+       * Type
+       * @enum {string}
+       */
+      type: 'good' | 'bad';
+      /** Tag */
+      tag?: ('Harmful' | 'Unsafe' | 'Fake' | 'Unhelpful' | 'Other') | null;
+      /** Message */
+      message?: string | null;
+      /** Created */
+      created?: string | null;
+      /** Updated */
+      updated?: string | null;
+    };
+    /** TurnFeedbackList */
+    TurnFeedbackList: {
+      /** Items */
+      items: components['schemas']['TurnFeedback'][];
+    };
+    /** UpdateUserPromptsRequest */
+    UpdateUserPromptsRequest: {
+      /** @description Prompts to update (only provided fields will be updated) */
+      prompts: components['schemas']['PromptsPayload'];
+    };
+    /** UpdatedQuota */
+    UpdatedQuota: {
+      /**
+       * Quota Type
+       * @description Type of quota that was updated
+       * @example max_collection_count
+       */
+      quota_type: string;
+      /**
+       * Old Limit
+       * @description Previous quota limit
+       * @example 10
+       */
+      old_limit: number;
+      /**
+       * New Limit
+       * @description New quota limit
+       * @example 20
+       */
+      new_limit: number;
+    };
+    /** UploadDocumentResponse */
+    UploadDocumentResponse: {
+      /**
+       * Document Id
+       * @description ID of the uploaded document
+       */
+      document_id: string;
+      /**
+       * Filename
+       * @description Name of the uploaded file
+       */
+      filename: string;
+      /**
+       * Size
+       * @description Size of the uploaded file in bytes
+       */
+      size: number;
+      /**
+       * Status
+       * @description Status of the document (UPLOADED for new uploads, or existing status for duplicate files)
+       * @enum {string}
+       */
+      status:
+        | 'UPLOADED'
+        | 'PENDING'
+        | 'RUNNING'
+        | 'COMPLETE'
+        | 'FAILED'
+        | 'DELETED'
+        | 'EXPIRED';
+    };
+    /** UrlCitationLocation */
+    UrlCitationLocation: {
+      /**
+       * Type
+       * @default url_citation
+       * @constant
+       */
+      type: 'url_citation';
+      /** Url */
+      url: string;
+      /** Title */
+      title?: string | null;
+    };
+    /** User */
+    User: {
+      /**
+       * Id
+       * @description The ID of the user
+       */
+      id?: string | null;
+      /**
+       * Username
+       * @description The username of the user
+       */
+      username?: string | null;
+      /**
+       * Email
+       * @description The email of the user
+       */
+      email?: string | null;
+      /**
+       * Role
+       * @description The role of the user
+       */
+      role?: string | null;
+      /**
+       * Is Active
+       * @description Whether the user is active
+       */
+      is_active?: boolean | null;
+      /**
+       * Date Joined
+       * @description The date and time the user joined the system
+       */
+      date_joined?: string | null;
+      /**
+       * Registration Source
+       * @description The registration source of the user (local, google, github, etc.)
+       */
+      registration_source?: string | null;
+    };
+    /** UserActivityContext */
+    UserActivityContext: {
+      /** Source Name */
+      source_name?: string | null;
+      /** Keyword */
+      keyword?: string | null;
+      /** Count */
+      count?: number | null;
+      /** Target Type */
+      target_type?: ('knowledge_base' | 'document' | 'web') | null;
+      /** Scope Label */
+      scope_label?: string | null;
+    };
+    /** UserActivityEnvelope */
+    UserActivityEnvelope: {
+      intent: components['schemas']['UserActivityIntent'];
+      /** Title Key */
+      title_key: string;
+      /** Subtitle Key */
+      subtitle_key: string;
+      /** Detail Key */
+      detail_key?: string | null;
+      context?: components['schemas']['UserActivityContext'] | null;
+    };
+    /**
+     * UserActivityIntent
+     * @enum {string}
+     */
+    UserActivityIntent:
+      | 'thinking'
+      | 'searching_knowledge'
+      | 'reading_source'
+      | 'comparing_results'
+      | 'writing_answer'
+      | 'waiting'
+      | 'completed'
+      | 'error';
+    /**
+     * UserList
+     * @description A list of users
+     */
+    UserList: {
+      /** Items */
+      items?: components['schemas']['User'][] | null;
+      pageResult?: components['schemas']['PageResult'] | null;
+    };
+    /**
+     * UserQuotaInfo
+     * @description Complete quota information for a user
+     */
+    UserQuotaInfo: {
+      /**
+       * User Id
+       * @description User ID
+       * @example user123
+       */
+      user_id: string;
+      /**
+       * Username
+       * @description Username
+       * @example john_doe
+       */
+      username?: string | null;
+      /**
+       * Email
+       * @description User email
+       * @example john@example.com
+       */
+      email?: string | null;
+      /**
+       * Role
+       * @description User role
+       * @example rw
+       */
+      role: string;
+      /**
+       * Quotas
+       * @description List of quota information
+       */
+      quotas: components['schemas']['QuotaInfo'][];
+    };
+    /**
+     * UserQuotaList
+     * @description List of user quota information (admin view)
+     */
+    UserQuotaList: {
+      /**
+       * Items
+       * @description List of user quota information
+       */
+      items: components['schemas']['UserQuotaInfo'][];
+    };
+    /** ValidateRequest */
+    ValidateRequest: {
+      /** Type */
+      type: string;
+      /** Template */
+      template: string;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+    };
+    /** VectorSearchParams */
+    VectorSearchParams: {
+      /**
+       * Topk
+       * @description Top K results
+       */
+      topk?: number | null;
+      /**
+       * Similarity
+       * @description Similarity threshold
+       */
+      similarity?: number | null;
+    };
+    /** VisionChunk */
+    VisionChunk: {
+      /** Id */
+      id?: string | null;
+      /** Asset Id */
+      asset_id?: string | null;
+      /** Text */
+      text?: string | null;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /** VisionSearchParams */
+    VisionSearchParams: {
+      /**
+       * Topk
+       * @description Top K results
+       */
+      topk?: number | null;
+      /**
+       * Similarity
+       * @description Similarity threshold
+       */
+      similarity?: number | null;
+    };
+    /**
+     * WebReadRequest
+     * @description Web content reading request
+     */
+    WebReadRequest: {
+      /**
+       * Url List
+       * @description List of URLs to read (for single URL, use array with one element)
+       * @example [
+       *       "https://example.com/article"
+       *     ]
+       */
+      url_list: string[];
+      /**
+       * Timeout
+       * @description Request timeout in seconds
+       * @default 30
+       * @example 30
+       */
+      timeout: number | null;
+      /**
+       * Locale
+       * @description Browser locale
+       * @default en-US
+       * @example en-US
+       */
+      locale: string | null;
+      /**
+       * Max Concurrent
+       * @description Maximum concurrent requests for multiple URLs
+       * @default 3
+       * @example 3
+       */
+      max_concurrent: number | null;
+    };
+    /**
+     * WebReadResponse
+     * @description Web content reading response
+     */
+    WebReadResponse: {
+      /**
+       * Results
+       * @description List of reading results
+       */
+      results: components['schemas']['WebReadResultItem'][];
+      /**
+       * Total Urls
+       * @description Total number of URLs processed
+       */
+      total_urls: number;
+      /**
+       * Successful
+       * @description Number of successful extractions
+       */
+      successful: number;
+      /**
+       * Failed
+       * @description Number of failed extractions
+       */
+      failed: number;
+      /**
+       * Processing Time
+       * @description Total processing time in seconds
+       */
+      processing_time?: number | null;
+    };
+    /**
+     * WebReadResultItem
+     * @description Individual web content reading result
+     */
+    WebReadResultItem: {
+      /**
+       * Url
+       * @description Requested URL
+       */
+      url: string;
+      /**
+       * Status
+       * @description Processing status
+       * @enum {string}
+       */
+      status: 'success' | 'error';
+      /**
+       * Title
+       * @description Page title
+       */
+      title?: string | null;
+      /**
+       * Content
+       * @description Extracted content in Markdown format
+       */
+      content?: string | null;
+      /**
+       * Extracted At
+       * @description Content extraction timestamp
+       */
+      extracted_at?: string | null;
+      /**
+       * Word Count
+       * @description Word count of content
+       */
+      word_count?: number | null;
+      /**
+       * Token Count
+       * @description Estimated token count
+       */
+      token_count?: number | null;
+      /**
+       * Error
+       * @description Error message if failed
+       */
+      error?: string | null;
+      /**
+       * Error Code
+       * @description Error code if failed
+       */
+      error_code?: string | null;
+    };
+    /**
+     * WebSearchMeta
+     * @description Lightweight execution diagnostics for web search.
+     */
+    WebSearchMeta: {
+      /**
+       * Search Status
+       * @description Overall search outcome: successful, empty, unavailable, or disabled.
+       * @example ok
+       * @enum {string}
+       */
+      search_status: 'ok' | 'empty' | 'unavailable' | 'disabled';
+      /**
+       * Provider Used
+       * @description Search providers attempted during this request.
+       * @example [
+       *       "jina",
+       *       "duckduckgo"
+       *     ]
+       */
+      provider_used?: string[];
+      /**
+       * Backend Used
+       * @description Concrete backend path used for this request when known.
+       * @example [
+       *       "duckduckgo:auto"
+       *     ]
+       */
+      backend_used?: string[];
+      /**
+       * Fallback Used
+       * @description Whether the request had to fall back from its preferred path.
+       * @default false
+       * @example true
+       */
+      fallback_used: boolean;
+      /**
+       * Error Code
+       * @description Machine-readable error code when the search path is unavailable.
+       * @example search_provider_unavailable
+       */
+      error_code?: string | null;
+    };
+    /**
+     * WebSearchRequest
+     * @description Web search request
+     */
+    WebSearchRequest: {
+      /**
+       * Query
+       * @description Search query for web search. Optional when using source-only site browsing.
+       * @example ApeRAG 2025年最新发展
+       */
+      query?: string | null;
+      /**
+       * Max Results
+       * @description Maximum number of results to return
+       * @default 5
+       * @example 5
+       */
+      max_results: number | null;
+      /**
+       * Timeout
+       * @description Request timeout in seconds
+       * @default 30
+       * @example 30
+       */
+      timeout: number | null;
+      /**
+       * Locale
+       * @description Browser locale
+       * @default en-US
+       * @example en-US
+       */
+      locale: string | null;
+      /**
+       * Source
+       * @description Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').
+       * @example vercel.com
+       */
+      source?: string | null;
+    };
+    /**
+     * WebSearchResponse
+     * @description Web search response
+     */
+    WebSearchResponse: {
+      /**
+       * Query
+       * @description Original search query
+       */
+      query: string;
+      /**
+       * Results
+       * @description List of search results
+       */
+      results: components['schemas']['WebSearchResultItem'][];
+      /**
+       * Total Results
+       * @description Total number of results found
+       */
+      total_results?: number | null;
+      /**
+       * Search Time
+       * @description Search time in seconds
+       */
+      search_time?: number | null;
+      /** @description Lightweight execution diagnostics for status, provider selection, and fallback behavior. */
+      meta?: components['schemas']['WebSearchMeta'] | null;
+    };
+    /**
+     * WebSearchResultItem
+     * @description Individual web search result
+     */
+    WebSearchResultItem: {
+      /**
+       * Rank
+       * @description Result rank
+       * @example 1
+       */
+      rank: number;
+      /**
+       * Title
+       * @description Page title
+       * @example ApeRAG 2025年技术路线图
+       */
+      title: string;
+      /**
+       * Url
+       * @description Page URL
+       * @example https://example.com/aperag-2025-roadmap
+       */
+      url: string;
+      /**
+       * Snippet
+       * @description Page snippet
+       * @example ApeRAG在2025年将重点发展...
+       */
+      snippet: string;
+      /**
+       * Domain
+       * @description Domain name
+       * @example example.com
+       */
+      domain: string;
+      /**
+       * Timestamp
+       * @description Result timestamp
+       * @example 2025-01-01T00:00:00Z
+       */
+      timestamp?: string | null;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    health_health_check: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    health_live_check: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    health_ready_check: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    invitations_create_invitation_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InvitationCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Invitation"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    invitations_list_invitations_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitationList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    auth_register_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Register"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    auth_login_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Login"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    auth_logout_view: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    users_get_user_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    users_list_users_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    auth_change_password_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangePassword"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    users_delete_user_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_export_task: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExportTaskResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_export_task: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExportTaskResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    download_export: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_keys_list_api_keys_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiKeyList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_keys_create_api_key_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApiKeyCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_keys_update_api_key_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                apikey_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApiKeyUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_keys_delete_api_key_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                apikey_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_get_quotas: {
-        parameters: {
-            query?: {
-                /** @description User ID to get quotas for (admin only, defaults to current user) */
-                user_id?: string;
-                /** @description Search term for username, email, or user ID (admin only) */
-                search?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserQuotaInfo"] | components["schemas"]["UserQuotaList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_update_quota: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuotaUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuotaUpdateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_recalculate_quota_usage: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_get_system_default_quotas: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SystemDefaultQuotasResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_update_system_default_quotas: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SystemDefaultQuotasUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SystemDefaultQuotasUpdateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_create_embeddings: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EmbeddingRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmbeddingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_list_marketplace_collections: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharedCollectionList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_list_user_subscribed_collections: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharedCollectionList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_subscribe_collection: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharedCollection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_unsubscribe_collection: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharedCollection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_list_marketplace_collection_documents: {
-        parameters: {
-            query?: {
-                /** @description Page number (1-based) */
-                page?: number;
-                /** @description Number of items per page */
-                page_size?: number;
-                /** @description Field to sort by */
-                sort_by?: string;
-                /** @description Sort order */
-                sort_order?: string;
-                /** @description Search documents by name */
-                search?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_marketplace_document_preview: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_marketplace_document_object: {
-        parameters: {
-            query: {
-                /** @description Object path within the document */
-                path: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection_graph: {
-        parameters: {
-            query?: {
-                label?: string;
-                max_nodes?: number;
-                max_depth?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KnowledgeGraph"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection_graph_embedding_map: {
-        parameters: {
-            query?: {
-                max_entities?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEmbeddingMapResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection_graph_hybrid: {
-        parameters: {
-            query?: {
-                max_entities?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphHybridResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_search_marketplace_collection_graph_entities: {
-        parameters: {
-            query: {
-                q: string;
-                top_k?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEntitiesSearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection_graph_entity_evidence: {
-        parameters: {
-            query?: {
-                limit?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEvidenceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    marketplace_get_marketplace_collection_graph_relation_evidence: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GraphRelationEvidenceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEvidenceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    Settings_get_settings: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    Settings_update_settings: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Settings"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    Settings_get_parser_health: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ParserHealthReport"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    Settings_test_mineru_token: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                } | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_get_user_prompts: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_update_user_prompts: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateUserPromptsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_delete_user_prompt: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                prompt_type: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_reset_user_prompts: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResetPromptsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_get_system_prompts: {
-        parameters: {
-            query?: {
-                type?: string | null;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_preview_prompt: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PreviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prompts_validate_prompt: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ValidateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    web_access_web_search_endpoint: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WebSearchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebSearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    web_access_web_read_endpoint: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WebReadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebReadResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    retrieval_list_searches_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResultList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    retrieval_create_search_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SearchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    retrieval_DeleteSearch: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                search_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_get_graph_labels_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphLabelsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_get_knowledge_graph_view: {
-        parameters: {
-            query?: {
-                label?: string;
-                max_nodes?: number;
-                max_depth?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KnowledgeGraph"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_merge_nodes_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_get_merge_suggestions_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MergeSuggestionsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_merge_suggestions_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["MergeSuggestionsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MergeSuggestionsRunResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_handle_suggestion_action_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                suggestion_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SuggestionActionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuggestionActionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_entities_search_view: {
-        parameters: {
-            query: {
-                q: string;
-                top_k?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEntitiesSearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_subgraph_expand_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GraphSubgraphExpandRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphSubgraphExpandResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_entity_detail_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphSearchEntity"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_entity_evidence_view: {
-        parameters: {
-            query?: {
-                limit?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEvidenceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_relation_evidence_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GraphRelationEvidenceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEvidenceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_embedding_map_view: {
-        parameters: {
-            query?: {
-                max_entities?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphEmbeddingMapResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    knowledge_graph_graph_hybrid_view: {
-        parameters: {
-            query?: {
-                max_entities?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphHybridResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_list_turn_feedback_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TurnFeedbackList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_upsert_turn_feedback_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Feedback"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TurnFeedback"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_delete_turn_feedback_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_search_chat_files_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SearchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_upload_chat_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_chats_upload_chat_document_view"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_get_chat_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    openai_openai_chat_completions_view: {
-        parameters: {
-            query?: {
-                /** @description Agent bot id that backs this OpenAI-compatible call */
-                bot_id?: string | null;
-                /** @description Existing chat id. Omit to create an ephemeral chat */
-                chat_id?: string | null;
-                /** @description Response language passed through to Agent Runtime */
-                language?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Model */
-                    model?: string | null;
-                    /** Messages */
-                    messages?: {
-                        [key: string]: unknown;
-                    }[];
-                    /**
-                     * Stream
-                     * @default false
-                     */
-                    stream?: boolean;
-                    /** Temperature */
-                    temperature?: number | null;
-                    /** Max Tokens */
-                    max_tokens?: number | null;
-                    /** Max Completion Tokens */
-                    max_completion_tokens?: number | null;
-                    /** Timeout */
-                    timeout?: number | null;
-                };
-            };
-        };
-        responses: {
-            /** @description OpenAI-compatible JSON response or text/event-stream chunks when stream=true */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OpenAIChatCompletionResponse"] | components["schemas"]["OpenAIErrorResponse"];
-                    "text/event-stream": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_create_turn_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateTurnRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateTurnResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_get_turn_snapshot_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentTurnSnapshot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_cancel_turn_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CancelTurnResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_post_consent_decision_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-                tool_call_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConsentDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConsentDecisionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_post_elicitation_response_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-                elicitation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ElicitationSubmitBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ElicitationSubmitResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_stream_turn_events_view: {
-        parameters: {
-            query?: {
-                after_sequence?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                chat_id: string;
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Server-sent timeline events for one agent turn. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_list_bots_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BotList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_create_bot_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_get_bot_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_update_bot_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_delete_bot_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_list_chats_v2_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_create_chat_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Chat"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_get_chat_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatDetails"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_update_chat_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Chat"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_delete_chat_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_v2_generate_chat_title_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TitleGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TitleGenerateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_list_evaluation_datasets_view: {
-        parameters: {
-            query?: {
-                collection_id?: string | null;
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_create_evaluation_dataset_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationDatasetCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_get_evaluation_dataset_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_update_evaluation_dataset_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationDatasetUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_delete_evaluation_dataset_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_list_evaluation_dataset_items_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetItemListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_append_evaluation_dataset_items_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationDatasetItemsAppendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetItemsAppendResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_generate_evaluation_dataset_items_preview_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationDatasetGeneratePreviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetGeneratePreviewResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_update_evaluation_dataset_item_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationDatasetItemUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationDatasetItemEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_delete_evaluation_dataset_item_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                dataset_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_list_evaluation_runs_view: {
-        parameters: {
-            query?: {
-                bot_id?: string | null;
-                dataset_id?: string | null;
-                collection_id?: string | null;
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_create_evaluation_run_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluationRunCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_get_evaluation_run_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_cancel_evaluation_run_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CancelRunResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_list_evaluation_run_items_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunItemListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_list_evaluation_run_item_attempts_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunItemAttemptList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    evaluation_v2_retry_evaluation_run_item_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationRunItemEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_list_model_providers_view: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelProviderList"];
-                };
-            };
-        };
-    };
-    model_platform_list_model_accounts_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelAccountList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_create_model_account_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModelAccountCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelAccount"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_update_model_account_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                account_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModelAccountUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelAccount"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_delete_model_account_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                account_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_validate_model_account_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                account_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelValidationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_list_model_account_models_view: {
-        parameters: {
-            query?: {
-                capability?: components["schemas"]["ModelCapability"] | null;
-                scenario?: components["schemas"]["ModelUseScenario"] | null;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                account_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_list_models_view: {
-        parameters: {
-            query?: {
-                capability?: components["schemas"]["ModelCapability"] | null;
-                scenario?: components["schemas"]["ModelUseScenario"] | null;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_create_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModelCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Model"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_update_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                model_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModelUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Model"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_delete_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                model_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_validate_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                model_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelValidationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_list_model_uses_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelUseList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    model_platform_update_model_use_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                scenario: components["schemas"]["ModelUseScenario"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModelUseUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelUse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_test_mineru_token_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MineruTokenTestRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MineruTokenTestResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_list_collections_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                include_subscribed?: boolean;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollectionViewList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_create_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CollectionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection-Output"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_get_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection-Output"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_update_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CollectionUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection-Output"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_delete_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_regen_collection_summary_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollectionRegenTriggerResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_regen_collection_description_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollectionRegenTriggerResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_get_collection_sharing_status_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharingStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_publish_collection_sharing_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_unpublish_collection_sharing_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_list_documents_v2_view: {
-        parameters: {
-            query?: {
-                /** @description Page number (1-based) */
-                page?: number;
-                /** @description Number of items per page */
-                page_size?: number;
-                /** @description Field to sort by */
-                sort_by?: "name" | "created" | "updated" | "size" | "status";
-                /** @description Sort order */
-                sort_order?: "asc" | "desc";
-                /** @description Search documents by name */
-                search?: string | null;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_create_documents_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_collections_v2_create_documents_v2_view"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_delete_documents_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeleteDocumentsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_list_staged_documents_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagedDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_get_document_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_delete_document_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_download_document_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_get_document_preview_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentPreview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_get_document_object_v2_view: {
-        parameters: {
-            query: {
-                path: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": unknown;
-                };
-            };
-            /** @description Partial Content */
-            206: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_rebuild_document_indexes_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RebuildIndexesRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RebuildIndexesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_rebuild_failed_indexes_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RebuildIndexesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_upload_document_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_collections_v2_upload_document_v2_view"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UploadDocumentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_confirm_documents_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmDocumentsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfirmDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_v2_fetch_url_document_v2_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FetchUrlRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FetchUrlResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
+  health_health_check: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+  };
+  health_live_check: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+  };
+  health_ready_check: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+  };
+  invitations_create_invitation_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['InvitationCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Invitation'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  invitations_list_invitations_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InvitationList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  auth_register_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Register'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['User'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  auth_login_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Login'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['User'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  auth_logout_view: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+    };
+  };
+  users_get_user_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  users_list_users_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UserList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  auth_change_password_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePassword'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  users_delete_user_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  create_export_task: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ExportTaskResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_export_task: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ExportTaskResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  download_export: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  api_keys_list_api_keys_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiKeyList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  api_keys_create_api_key_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ApiKeyCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  api_keys_update_api_key_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        apikey_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ApiKeyUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  api_keys_delete_api_key_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        apikey_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  quotas_get_quotas: {
+    parameters: {
+      query?: {
+        /** @description User ID to get quotas for (admin only, defaults to current user) */
+        user_id?: string;
+        /** @description Search term for username, email, or user ID (admin only) */
+        search?: string;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | components['schemas']['UserQuotaInfo']
+            | components['schemas']['UserQuotaList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  quotas_update_quota: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['QuotaUpdateRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['QuotaUpdateResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  quotas_recalculate_quota_usage: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  quotas_get_system_default_quotas: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SystemDefaultQuotasResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  quotas_update_system_default_quotas: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SystemDefaultQuotasUpdateRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SystemDefaultQuotasUpdateResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  llm_create_embeddings: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EmbeddingRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EmbeddingResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_list_marketplace_collections: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SharedCollectionList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_list_user_subscribed_collections: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SharedCollectionList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_subscribe_collection: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SharedCollection'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_unsubscribe_collection: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SharedCollection'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_list_marketplace_collection_documents: {
+    parameters: {
+      query?: {
+        /** @description Page number (1-based) */
+        page?: number;
+        /** @description Number of items per page */
+        page_size?: number;
+        /** @description Field to sort by */
+        sort_by?: string;
+        /** @description Sort order */
+        sort_order?: string;
+        /** @description Search documents by name */
+        search?: string;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_marketplace_document_preview: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_marketplace_document_object: {
+    parameters: {
+      query: {
+        /** @description Object path within the document */
+        path: string;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection_graph: {
+    parameters: {
+      query?: {
+        label?: string;
+        max_nodes?: number;
+        max_depth?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['KnowledgeGraph'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection_graph_embedding_map: {
+    parameters: {
+      query?: {
+        max_entities?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEmbeddingMapResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection_graph_hybrid: {
+    parameters: {
+      query?: {
+        max_entities?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphHybridResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_search_marketplace_collection_graph_entities: {
+    parameters: {
+      query: {
+        q: string;
+        top_k?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEntitiesSearchResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection_graph_entity_evidence: {
+    parameters: {
+      query?: {
+        limit?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEvidenceResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  marketplace_get_marketplace_collection_graph_relation_evidence: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GraphRelationEvidenceRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEvidenceResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  Settings_get_settings: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  Settings_update_settings: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Settings'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  Settings_get_parser_health: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ParserHealthReport'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  Settings_test_mineru_token: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        'application/json': {
+          [key: string]: unknown;
+        } | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_get_user_prompts: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_update_user_prompts: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateUserPromptsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_delete_user_prompt: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        prompt_type: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_reset_user_prompts: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ResetPromptsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_get_system_prompts: {
+    parameters: {
+      query?: {
+        type?: string | null;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_preview_prompt: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PreviewRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  prompts_validate_prompt: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ValidateRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  web_access_web_search_endpoint: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WebSearchRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WebSearchResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  web_access_web_read_endpoint: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WebReadRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WebReadResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  retrieval_list_searches_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SearchResultList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  retrieval_create_search_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SearchRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SearchResult'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  retrieval_DeleteSearch: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        search_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_get_graph_labels_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphLabelsResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_get_knowledge_graph_view: {
+    parameters: {
+      query?: {
+        label?: string;
+        max_nodes?: number;
+        max_depth?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['KnowledgeGraph'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_merge_nodes_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_get_merge_suggestions_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MergeSuggestionsResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_merge_suggestions_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        'application/json': components['schemas']['MergeSuggestionsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MergeSuggestionsRunResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_handle_suggestion_action_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SuggestionActionRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SuggestionActionResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_entities_search_view: {
+    parameters: {
+      query: {
+        q: string;
+        top_k?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEntitiesSearchResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_subgraph_expand_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GraphSubgraphExpandRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphSubgraphExpandResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_entity_detail_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphSearchEntity'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_entity_evidence_view: {
+    parameters: {
+      query?: {
+        limit?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEvidenceResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_relation_evidence_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GraphRelationEvidenceRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEvidenceResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_embedding_map_view: {
+    parameters: {
+      query?: {
+        max_entities?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphEmbeddingMapResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  knowledge_graph_graph_hybrid_view: {
+    parameters: {
+      query?: {
+        max_entities?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GraphHybridResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_list_turn_feedback_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TurnFeedbackList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_upsert_turn_feedback_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Feedback'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TurnFeedback'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_delete_turn_feedback_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_search_chat_files_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SearchRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SearchResult'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_upload_chat_document_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_chats_upload_chat_document_view'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Document'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  chats_get_chat_document_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Document'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  openai_openai_chat_completions_view: {
+    parameters: {
+      query?: {
+        /** @description Agent bot id that backs this OpenAI-compatible call */
+        bot_id?: string | null;
+        /** @description Existing chat id. Omit to create an ephemeral chat */
+        chat_id?: string | null;
+        /** @description Response language passed through to Agent Runtime */
+        language?: string;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Model */
+          model?: string | null;
+          /** Messages */
+          messages?: {
+            [key: string]: unknown;
+          }[];
+          /**
+           * Stream
+           * @default false
+           */
+          stream?: boolean;
+          /** Temperature */
+          temperature?: number | null;
+          /** Max Tokens */
+          max_tokens?: number | null;
+          /** Max Completion Tokens */
+          max_completion_tokens?: number | null;
+          /** Timeout */
+          timeout?: number | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OpenAI-compatible JSON response or text/event-stream chunks when stream=true */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | components['schemas']['OpenAIChatCompletionResponse']
+            | components['schemas']['OpenAIErrorResponse'];
+          'text/event-stream': string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_create_turn_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTurnRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CreateTurnResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_get_turn_snapshot_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AgentTurnSnapshot'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_cancel_turn_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CancelTurnResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_post_consent_decision_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+        tool_call_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ConsentDecisionBody'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConsentDecisionResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_post_elicitation_response_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+        elicitation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ElicitationSubmitBody'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ElicitationSubmitResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  agent_runtime_stream_turn_events_view: {
+    parameters: {
+      query?: {
+        after_sequence?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        chat_id: string;
+        turn_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Server-sent timeline events for one agent turn. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/event-stream': string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_list_bots_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BotList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_create_bot_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BotCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Bot'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_get_bot_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Bot'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_update_bot_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BotUpdateRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Bot'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_delete_bot_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_list_chats_v2_view: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChatList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_create_chat_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Chat'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_get_chat_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChatDetails'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_update_chat_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChatUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Chat'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_delete_chat_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  bots_v2_generate_chat_title_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        bot_id: string;
+        chat_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        'application/json': components['schemas']['TitleGenerateRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TitleGenerateResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_list_evaluation_datasets_view: {
+    parameters: {
+      query?: {
+        collection_id?: string | null;
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetListResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_create_evaluation_dataset_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationDatasetCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_get_evaluation_dataset_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_update_evaluation_dataset_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationDatasetUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_delete_evaluation_dataset_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_list_evaluation_dataset_items_view: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetItemListResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_append_evaluation_dataset_items_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationDatasetItemsAppendRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetItemsAppendResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_generate_evaluation_dataset_items_preview_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationDatasetGeneratePreviewRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetGeneratePreviewResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_update_evaluation_dataset_item_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationDatasetItemUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationDatasetItemEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_delete_evaluation_dataset_item_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        dataset_id: string;
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_list_evaluation_runs_view: {
+    parameters: {
+      query?: {
+        bot_id?: string | null;
+        dataset_id?: string | null;
+        collection_id?: string | null;
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunListResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_create_evaluation_run_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EvaluationRunCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_get_evaluation_run_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunDetailResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_cancel_evaluation_run_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CancelRunResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_list_evaluation_run_items_view: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunItemListResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_list_evaluation_run_item_attempts_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        run_id: string;
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunItemAttemptList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  evaluation_v2_retry_evaluation_run_item_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        run_id: string;
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EvaluationRunItemEnvelope'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_list_model_providers_view: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelProviderList'];
+        };
+      };
+    };
+  };
+  model_platform_list_model_accounts_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelAccountList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_create_model_account_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ModelAccountCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelAccount'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_update_model_account_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        account_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ModelAccountUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelAccount'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_delete_model_account_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        account_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_validate_model_account_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        account_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelValidationResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_list_model_account_models_view: {
+    parameters: {
+      query?: {
+        capability?: components['schemas']['ModelCapability'] | null;
+        scenario?: components['schemas']['ModelUseScenario'] | null;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        account_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_list_models_view: {
+    parameters: {
+      query?: {
+        capability?: components['schemas']['ModelCapability'] | null;
+        scenario?: components['schemas']['ModelUseScenario'] | null;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_create_model_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ModelCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Model'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_update_model_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        model_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ModelUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Model'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_delete_model_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        model_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_validate_model_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        model_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelValidationResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_list_model_uses_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelUseList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  model_platform_update_model_use_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        scenario: components['schemas']['ModelUseScenario'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ModelUseUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelUse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_test_mineru_token_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MineruTokenTestRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MineruTokenTestResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_list_collections_view: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        include_subscribed?: boolean;
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CollectionViewList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_create_collection_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CollectionCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Collection-Output'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_get_collection_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Collection-Output'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_update_collection_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CollectionUpdate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Collection-Output'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_delete_collection_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_regen_collection_summary_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CollectionRegenTriggerResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_regen_collection_description_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CollectionRegenTriggerResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_get_collection_sharing_status_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SharingStatusResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_publish_collection_sharing_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_unpublish_collection_sharing_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_list_documents_v2_view: {
+    parameters: {
+      query?: {
+        /** @description Page number (1-based) */
+        page?: number;
+        /** @description Number of items per page */
+        page_size?: number;
+        /** @description Field to sort by */
+        sort_by?: 'name' | 'created' | 'updated' | 'size' | 'status';
+        /** @description Sort order */
+        sort_order?: 'asc' | 'desc';
+        /** @description Search documents by name */
+        search?: string | null;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_create_documents_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_collections_v2_create_documents_v2_view'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentList'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_delete_documents_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeleteDocumentsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DeleteDocumentsResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_list_staged_documents_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedDocumentsResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_get_document_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Document'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_delete_document_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_download_document_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/octet-stream': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_get_document_preview_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentPreview'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_get_document_object_v2_view: {
+    parameters: {
+      query: {
+        path: string;
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/octet-stream': unknown;
+        };
+      };
+      /** @description Partial Content */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/octet-stream': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_rebuild_document_indexes_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RebuildIndexesRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RebuildIndexesResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_rebuild_failed_indexes_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RebuildIndexesResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_upload_document_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_collections_v2_upload_document_v2_view'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UploadDocumentResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_confirm_documents_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ConfirmDocumentsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConfirmDocumentsResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  collections_v2_fetch_url_document_v2_view: {
+    parameters: {
+      query?: {
+        engine?: unknown;
+      };
+      header?: never;
+      path: {
+        collection_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FetchUrlRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FetchUrlResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
 }
