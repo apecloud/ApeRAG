@@ -49,6 +49,10 @@ class ContextManager(ABC):
     def query(
         self,
         query,
+        # ``score_threshold`` is on the normalized [0, 1] similarity scale
+        # per task #61 P0-B (``aperag.vectorstore.base.normalize_score``).
+        # 0.5 is a permissive cosine-grade default — non-cosine collections
+        # may want to override.
         score_threshold: float = 0.5,
         topk: int = 3,
         vector: Optional[List[float]] = None,
