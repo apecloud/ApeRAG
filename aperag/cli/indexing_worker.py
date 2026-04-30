@@ -59,6 +59,7 @@ from aperag.indexing.quota import (
     QuotaPolicyRegistry,
     RedisQuotaBackend,
 )
+from aperag.indexing.runtime import IndexingRuntime, set_runtime
 from aperag.indexing.worker_factory import ProductionWorkerFactory
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.objectstore.base import get_object_store
@@ -70,6 +71,34 @@ from aperag.observability import (
 from aperag.observability.metrics import shutdown_metrics_provider
 
 logger = logging.getLogger(__name__)
+
+
+def _install_worker_runtime(
+    *,
+    engine,
+    queue,
+    metrics_emitter,
+    quota_backend,
+    worker_factory: ProductionWorkerFactory,
+) -> None:
+    """Install the process-local runtime used by worker-side graph helpers.
+
+    The API installs its own enqueue-only runtime in ``app.py``. The
+    standalone worker process needs the same process-local singleton so
+    graph workers can resolve ``DocumentIndex.tenant_scope_key`` through
+    ``aperag.indexing.worker_factory._resolve_tenant_scope_key``.
+    """
+
+    set_runtime(
+        IndexingRuntime(
+            engine=engine,
+            queue=queue,
+            workers={},
+            metrics_emitter=metrics_emitter,
+            cleanup_worker_factory=worker_factory.build_for_cleanup_row,
+            quota_backend=quota_backend,
+        )
+    )
 
 
 async def _amain() -> None:
@@ -139,6 +168,13 @@ async def _amain() -> None:
     # ProductionWorkerFactory: per-task 懒构造. worker entrypoint 在 BLPOP 出
     # payload 后调用, 按 (collection_id, modality) 构造 ModalityWorker.
     worker_factory = ProductionWorkerFactory(engine=sync_engine)
+    _install_worker_runtime(
+        engine=sync_engine,
+        queue=queue,
+        metrics_emitter=metrics_emitter,
+        quota_backend=quota_backend,
+        worker_factory=worker_factory,
+    )
     worker_kwargs = dict(
         engine=sync_engine,
         queue=queue,
@@ -187,36 +223,39 @@ async def _amain() -> None:
         "graph_vectors/summary/vision/parse/reconciler/cleanup)"
     )
 
-    await shutdown.wait()
-    logger.info("indexing-worker shutdown signal received, draining %d tasks...", len(tasks))
-
-    # cuiwenbo msg=f7868d2c #3 + Weston msg=ce324047 #2: 给 graceful drain 设 25s 上限
-    # (kubelet 默认 30s grace), 超时强制 cancel, 避免某个 worker 不响应 shutdown
-    # event 时挂到 SIGKILL 丢 in-flight 状态.
     try:
-        await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=25.0,
-        )
-    except asyncio.TimeoutError:
-        logger.warning("indexing-worker shutdown timeout after 25s, cancelling %d tasks", len(tasks))
-        for t in tasks:
-            t.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await shutdown.wait()
+        logger.info("indexing-worker shutdown signal received, draining %d tasks...", len(tasks))
 
-    # cuiwenbo msg=f7868d2c #2 + Weston msg=ce324047 #1: flush OTLP MeterProvider,
-    # 否则 PeriodicExportingMetricReader 残留样本会随 worker 退出丢失 (跟 app.py
-    # finally 段调 shutdown_metrics_provider 等价).
-    with contextlib.suppress(Exception):
-        await asyncio.to_thread(shutdown_metrics_provider)
+        # cuiwenbo msg=f7868d2c #3 + Weston msg=ce324047 #2: 给 graceful drain 设 25s 上限
+        # (kubelet 默认 30s grace), 超时强制 cancel, 避免某个 worker 不响应 shutdown
+        # event 时挂到 SIGKILL 丢 in-flight 状态.
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=25.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("indexing-worker shutdown timeout after 25s, cancelling %d tasks", len(tasks))
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 关闭 RedisWorkQueue / quota redis. 失败 swallow (跟 app.py 同样模式).
-    if hasattr(queue, "close"):
+        # cuiwenbo msg=f7868d2c #2 + Weston msg=ce324047 #1: flush OTLP MeterProvider,
+        # 否则 PeriodicExportingMetricReader 残留样本会随 worker 退出丢失 (跟 app.py
+        # finally 段调 shutdown_metrics_provider 等价).
         with contextlib.suppress(Exception):
-            await queue.close()
-    if quota_redis is not None:
-        with contextlib.suppress(Exception):
-            await quota_redis.aclose()
+            await asyncio.to_thread(shutdown_metrics_provider)
+
+        # 关闭 RedisWorkQueue / quota redis. 失败 swallow (跟 app.py 同样模式).
+        if hasattr(queue, "close"):
+            with contextlib.suppress(Exception):
+                await queue.close()
+        if quota_redis is not None:
+            with contextlib.suppress(Exception):
+                await quota_redis.aclose()
+    finally:
+        set_runtime(None)
     logger.info("indexing-worker shutdown complete")
 
 
