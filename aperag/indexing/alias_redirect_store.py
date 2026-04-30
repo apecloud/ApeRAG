@@ -70,7 +70,6 @@ without an explicit decorator update.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -263,20 +262,34 @@ class LineageGraphStoreWithAliasRedirect:
     ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
         if not entity_names:
             return await self._inner.expand_neighbors_n_hops(entity_names=entity_names, hops=hops)
-        # Resolve every anchor through the alias map so a caller seeding
-        # ``["Alicia"]`` walks the canonical ``Alice`` neighbourhood.
-        # ``asyncio.gather`` keeps the per-anchor lookup cost flat —
-        # N is bounded by the caller (typically small).
-        resolved = await asyncio.gather(
-            *(self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=n) for n in entity_names),
-            return_exceptions=False,
+        # Resolve every anchor through the alias map so a caller
+        # seeding ``["Alicia"]`` walks the canonical ``Alice``
+        # neighbourhood.
+        #
+        # task #61 P2-S1+S2 (per Planetegg msg=db7fb085 +
+        # msg=1314ac59 + spec § 2.4): batched resolution via
+        # ``resolve_canonical_many`` so we issue ONE SQL roundtrip
+        # regardless of the seed count. Pre-fix this site used
+        # ``asyncio.gather`` of N per-name ``resolve_canonical``
+        # coroutines, which checked out N PG connections in
+        # parallel. ``GET /graphs?max_nodes=1000`` → up to 2 ×
+        # 1000 = 2000 seeds (per spec quantification); ``GET
+        # /graphs/hybrid`` allows up to 5000 seeds. At those
+        # cardinalities the connection pool saturates and unrelated
+        # API requests stall — Singapore production observed this
+        # exact saturation pattern (Planetegg msg=4043adf4 SRE
+        # diagnostic).
+        resolved_map = await self._alias_repo.resolve_canonical_many(
+            collection_id=self._collection_id,
+            names=entity_names,
         )
         # De-dup so ``["Alicia", "Alice"]`` (alias + canonical mixed)
-        # doesn't double-traverse the same anchor; preserve input order
-        # for deterministic output.
+        # doesn't double-traverse the same anchor; preserve input
+        # order for deterministic output.
         seen: set[str] = set()
         canonical_anchors: list[str] = []
-        for original, canonical in zip(entity_names, resolved):
+        for original in entity_names:
+            canonical = resolved_map.get(original, original)
             if canonical not in seen:
                 seen.add(canonical)
                 canonical_anchors.append(canonical)
