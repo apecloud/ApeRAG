@@ -82,7 +82,7 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 
 1. **配置化**（earayu2 msg=f060f1c6 hard requirement）：
    - **配置 schema path lock**（per ziang msg=c0ea4ecc 实施点 1）：`collection.config.knowledge_graph_config.graph_extraction_window_size` / `.graph_extraction_max_window_tokens`（跟 `aperag/schema/common.py:220` `knowledge_graph_config` + `graph_extractor.py:_resolve_kg_config_value()` 现有 schema 对齐，避免配置面漂移；spec 内文用 `kg.*` 简写表示同一路径）
-   - `graph_extraction_window_size`（**初始 default `1` = 旧行为兼容回退**，benchmark 后再 confirm 默认值）
+   - `graph_extraction_window_size`（**B3 lock default `2`** per § 4.2 sweet spot per earayu2 directive msg=adb0c366；保守场景 override `1` 兼容旧行为，强模型 (Gemini 2.5 Flash) 实验 override `5`）
    - `graph_extraction_max_window_tokens`（兜底 cap，超长窗口截断或拆分）
    - **collection-level config**（每个知识库可独立配置，跟 model / 文档类型 align）
    - **`window_overlap` 移到 backlog**（per Weston msg=a29f94ab NIT 2）：第一版仅 non-overlap (overlap=0 hardcoded)，避免重复 provenance / 重复实体 / benchmark 解读复杂度；earayu2 hard requirement 是 `window_size` configurable，不是 overlap configurable，sliding overlap 是 future feature
@@ -161,15 +161,50 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 | 模型 | 至少 2 个：默认 Qwen3 30B + Gemini/Claude 类强模型对照 |
 | 样本 | 复用 PR #1863 3 真实 sample（ASF zh / ESD zh / TI en）跨语言 + 跨领域 |
 
-### 4.2 默认值选择规则（earayu2 directive「中等偏保守」）
+### 4.2 默认值 lock（task #30 B3，2026-04-30）
 
-- **不锁 3，benchmark 数据决定**
-- 优先选「中等偏保守的最小有效窗口」：
-  - 如 `2` 已显著降调用 + 提质量 → 不贸然默认 `3` / `5`
-  - 只有 `3` 在 JSON 稳定性 + 证据归属 + 质量 + 成本都明显优于 `2` 才默认 `3`
-- `5` 仅作实验档不建议第一版默认
-- **配置仍保留 collection-level override**，不同模型 / 知识库自己调
-- benchmark 数据出来后 PM + architect + earayu2 confirm 最终默认值，再写进代码（**不在 spec 时点 lock**）
+**`graph_extraction_window_size = 2`** — 总架构师拍板甜蜜点（per earayu2 directive `msg=adb0c366`「效果稍微降低一点是可以接受的，总架构师拍板一个甜蜜点，默认至少是 2，根据性价比」+ Planetegg B2 `msg=096e0089` + Planetegg `msg=a33607aa` + Weston `msg=9ae48560` + 架构师 `msg=08ebb696` / `msg=f1feb2f1` 三方收敛）。
+
+#### 4.2.1 B2 全矩阵数据（3 sample × 8 cell）
+
+| model | window | calls | wall_s | cost | json_ok | source_valid | entity_hit | relation_hit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Qwen3 30B | 1 | 12 | 147.2 | $0.0042 | 1.000 | 1.000 | **0.930** | 0.686 |
+| **Qwen3 30B** | **2** | **6** | **82.9** | **$0.0031** | **1.000** | **0.992** | **0.860** | **0.714** |
+| Qwen3 30B | 3 | 6 | 102.6 | $0.0033 | 1.000 | 1.000 | 0.912 | 0.657 |
+| Qwen3 30B | 5 | 3 | 75.2 | $0.0025 | 1.000 | 1.000 | 0.754 | 0.543 |
+| Gemini 2.5 Flash | 1 | 12 | 57.3 | $0.0312 | 1.000 | 1.000 | **0.965** | 0.686 |
+| **Gemini 2.5 Flash** | **2** | **6** | **49.6** | **$0.0260** | **1.000** | **1.000** | **0.930** | **0.714** |
+| Gemini 2.5 Flash | 3 | 6 | 49.7 | $0.0226 | **0.833** ⚠️ | 1.000 | 0.667 | 0.514 |
+| Gemini 2.5 Flash | 5 | 3 | 37.2 | $0.0255 | 1.000 | 1.000 | 0.947 | 0.714 |
+
+#### 4.2.2 default=2 sweet spot rationale
+
+1. **跨模型稳定**：Qwen + Gemini 都 `json_ok=1.0` / `source_valid≥0.992`（window=3 Gemini 1/6 json drift `0.833` ⚠️ — 不能默认）
+2. **效果降低 acceptable**（per earayu2 directive）：Qwen entity -0.07 + relation +0.028 ≈ 净 -0.04 / Gemini entity -0.035 + relation +0.028 ≈ 净 -0.01；earayu2 明确「效果稍微降低可以接受」
+3. **性价比显著**：calls -50% / Qwen cost -26% wall -44% / Gemini cost -17% wall -13%
+4. **风险低**：跨模型一致；window=3 Gemini json drift / window=5 Qwen entity 跪 (0.754) — 都不适合默认
+
+#### 4.2.3 collection-level override 推荐
+
+- **保守 / 质量优先**：`window_size=1`（旧行为兼容回退，Qwen entity 0.930 baseline）
+- **强模型实验**：Gemini 2.5 Flash `window_size=5`（entity 0.947 / cost $0.0255 优于 default=2，model-specific）
+- **Qwen 不推荐 opt-in 大窗口**：`window_size=3` Qwen entity 略好但 relation 跌且 wall 反而更长，不性价比；`window_size=5` 质量明显跪
+- **Qwen window=2 = 默认**：cost / 调用数 / 关系召回最佳平衡
+
+#### 4.2.4 sample 限制免责
+
+3 个 benchmark 文档不足以支撑「按模型自动改默认」(per Weston `msg=4b7f2357` + Planetegg `msg=181518f2`)。default=2 lock 是「按当前数据最稳健甜蜜点」，未来更大样本 + 多模型同时不退步证据可调。后续改默认必须满足：(a) ≥10 个样本跨语言/跨领域；(b) 至少 3 个 model 同时不退步；(c) PM + architect + earayu2 三方 confirm。
+
+#### 4.2.5 实施改动 (B3 spec amend PR)
+
+本 PR 实施改动:
+1. `aperag/indexing/graph_extractor.py:81` `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1` → **`2`** + docstring fold sweet spot rationale
+2. `aperag/schema/common.py:167` `KnowledgeGraphConfig.graph_extraction_window_size` description 「default 1 if unset」→「default 2 if unset」+ override 推荐文案
+3. 本 spec § 4.2 改 lock 章节（本次 amend）+ § 5 B3 sub-task 收口
+
+**Defer to follow-up（per Planetegg msg=1106a78f NIT — 控本 PR scope）**:
+- `docs/zh-CN/architecture/indexing-retrieval-kg.md` 加 model × window 实验参考表 — 跟 indexing-retrieval-kg.md 整体 update 一起做（不在本 spec amend scope 内）
 
 ## 5. 实施 sub-task 拆分（parallel-friendly）
 

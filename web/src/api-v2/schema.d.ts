@@ -4960,7 +4960,7 @@ export interface components {
             max_relations_per_chunk?: number | null;
             /**
              * Graph Extraction Window Size
-             * @description Number of consecutive chunks to combine for one graph extraction LLM call; default 1 if unset. Values above 1 only affect the graph index.
+             * @description Number of consecutive chunks to combine for one graph extraction LLM call; default 2 if unset (task #30 B3 sweet spot per earayu2 directive — Planetegg B2 full matrix shows window=2 cuts LLM calls 50% with ≤0.07 entity drop and +0.028 relation lift cross-model). Values above 1 only affect the graph index. Override per-collection: 1 for legacy/quality-priority, 5 for strong-model experiment (Gemini 2.5 Flash showed entity 0.947 at window=5).
              * @example 2
              */
             graph_extraction_window_size?: number | null;
