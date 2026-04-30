@@ -44,11 +44,11 @@ from __future__ import annotations
 import pytest
 
 from aperag.schema.common import (
+    _STATIC_VECTOR_BACKEND_CAPABILITIES,
     VectorBackendCapabilities,
     VectorBackendInfo,
     project_vector_backend_info,
 )
-from aperag.schema.common import _STATIC_VECTOR_BACKEND_CAPABILITIES
 
 
 def test_qdrant_capability_matrix_matches_p1_v_spec() -> None:
