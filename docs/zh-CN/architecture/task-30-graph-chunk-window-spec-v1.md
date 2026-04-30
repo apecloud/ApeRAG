@@ -198,10 +198,13 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 
 #### 4.2.5 实施改动 (B3 spec amend PR)
 
+本 PR 实施改动:
 1. `aperag/indexing/graph_extractor.py:81` `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1` → **`2`** + docstring fold sweet spot rationale
 2. `aperag/schema/common.py:167` `KnowledgeGraphConfig.graph_extraction_window_size` description 「default 1 if unset」→「default 2 if unset」+ override 推荐文案
-3. `docs/zh-CN/architecture/indexing-retrieval-kg.md` 加 model × window 实验参考表
-4. 本 spec § 4.2 改 lock 章节（本次 amend）+ § 5 B3 sub-task 收口
+3. 本 spec § 4.2 改 lock 章节（本次 amend）+ § 5 B3 sub-task 收口
+
+**Defer to follow-up（per Planetegg msg=1106a78f NIT — 控本 PR scope）**:
+- `docs/zh-CN/architecture/indexing-retrieval-kg.md` 加 model × window 实验参考表 — 跟 indexing-retrieval-kg.md 整体 update 一起做（不在本 spec amend scope 内）
 
 ## 5. 实施 sub-task 拆分（parallel-friendly）
 
