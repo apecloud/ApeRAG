@@ -42,6 +42,7 @@ from aperag.indexing import (
     RedisWorkQueue,
     run_cleanup_loop,
     run_fulltext_worker,
+    run_graph_curation_run_worker,
     run_graph_facts_worker,
     run_graph_vectors_worker,
     run_graph_worker,
@@ -186,8 +187,12 @@ async def _amain() -> None:
         """sync ``get_object_store`` 的 async wrapper, 跟 app.py 行为一致."""
         return await asyncio.to_thread(get_object_store)
 
-    # 启动 10 个后台任务. 顺序跟 app.py lifespan 一致 (per ziang msg=7ff9efd7
-    # #4 含 legacy graph lane).
+    # 启动 11 个后台任务. 顺序跟 app.py lifespan 一致 (per ziang msg=7ff9efd7
+    # #4 含 legacy graph lane). task #31 Phase A1 加 11th lane
+    # ``graph_curation_run`` (独立 queue family ``q:graph_curation_run``,
+    # 不走 ``_entrypoint(Modality, ...)``, 不引入 ``Modality`` enum value
+    # — per spec § 3.1.1 + ziang msg=92321bcc + Bryce msg=4c23f87e
+    # BLOCKER 1).
     tasks: list[asyncio.Task[None]] = [
         asyncio.create_task(run_vector_worker(**worker_kwargs)),
         asyncio.create_task(run_fulltext_worker(**worker_kwargs)),
@@ -216,11 +221,28 @@ async def _amain() -> None:
                 shutdown=shutdown,
             ),
         ),
+        # task #31 Phase A1 — graph node merge suggestion run worker.
+        # Independent loop, NOT keyed by ``Modality``. Consumes the
+        # ``q:graph_curation_run`` queue (separate from
+        # ``q:indexing:<modality>``); pop calls
+        # ``generate_graph_curation_run_task`` integration path. The
+        # auto_post_ingest path (existing
+        # ``MergeCandidateDetector.detect_for_sync`` end-of-sync) is
+        # intentionally NOT routed here per spec § 3.1.1.b — it stays
+        # write-only quick path inside the graph_facts/graph_vectors
+        # lanes and is description-free fixed by task #77 A3.
+        asyncio.create_task(
+            run_graph_curation_run_worker(
+                engine=sync_engine,
+                queue=queue,
+                shutdown=shutdown,
+            ),
+        ),
     ]
 
     logger.info(
-        "indexing-worker started: 10 tasks (vector/fulltext/graph/graph_facts/"
-        "graph_vectors/summary/vision/parse/reconciler/cleanup)"
+        "indexing-worker started: 11 tasks (vector/fulltext/graph/graph_facts/"
+        "graph_vectors/summary/vision/parse/reconciler/cleanup/graph_curation_run)"
     )
 
     try:

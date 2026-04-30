@@ -51,6 +51,14 @@ CLI_WORKER_PY = REPO_ROOT / "aperag" / "cli" / "indexing_worker.py"
 # the API-side worker startup that the hard cut removed. The list is
 # the same set ``run_*`` entrypoints that ``aperag/cli/indexing_worker.py``
 # now owns.
+#
+# task #31 Phase A1 (per spec ``task-31-graph-node-merge-spec-v1.md``
+# § 3.1.1 + § 5.2.a + ziang msg=92321bcc + Bryce msg=4c23f87e
+# BLOCKER 1) added ``run_graph_curation_run_worker``: graph node merge
+# suggestion full-sweep runs through an independent
+# ``q:graph_curation_run`` queue family, NOT the per-modality lanes.
+# The lane name is symbolic (not a numeric "11th") so future lane
+# add/remove doesn't drift this list.
 _BANNED_LIFESPAN_INVOCATIONS: tuple[str, ...] = (
     "run_vector_worker",
     "run_fulltext_worker",
@@ -62,6 +70,7 @@ _BANNED_LIFESPAN_INVOCATIONS: tuple[str, ...] = (
     "run_parse_worker",
     "run_reconcile_loop",
     "run_cleanup_loop",
+    "run_graph_curation_run_worker",
 )
 
 # ``ProductionWorkerFactory`` materialises real backends (Qdrant /
@@ -169,4 +178,85 @@ def test_cli_worker_constructs_production_worker_factory():
         "aperag/cli/indexing_worker.py must construct "
         "ProductionWorkerFactory(...) — it is the worker-side owner "
         "of the heavy backend clients after the task #17 hard cut."
+    )
+
+
+# ---------------------------------------------------------------------
+# task #31 Phase A1 — graph_curation_run lane symbolic dual-side gate
+# ---------------------------------------------------------------------
+#
+# Per spec ``task-31-graph-node-merge-spec-v1.md`` § 5.2.a ("lane
+# symbolic dual-side"):
+# * Positive — lane name ``graph_curation_run`` MUST appear in the
+#   indexing-worker process startup so the worker actually consumes
+#   ``q:graph_curation_run``.
+# * Negative — the API process MUST NOT execute the merge sweep
+#   itself. ``GraphCurationService.start_run`` was historically
+#   ``asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task, ...))``,
+#   which is the exact "API owns heavy execution" footgun task #17
+#   hard cut closed. After Phase A1 the only API-side path is a thin
+#   ``runtime.queue.push_graph_curation_run(...)`` enqueue.
+
+GRAPH_CURATION_SERVICE_PY = REPO_ROOT / "aperag" / "graph_curation" / "service.py"
+
+
+def test_cli_worker_starts_graph_curation_run_lane():
+    """Positive contract: the CLI worker invokes
+    ``run_graph_curation_run_worker`` so the indexing-worker process
+    actually consumes ``q:graph_curation_run``. Already covered by
+    ``test_cli_worker_starts_every_runtime_loop`` via the symbol list,
+    but kept here as a direct, named-by-spec test so failure messages
+    point straight at task #31 Phase A1."""
+    src = _read(CLI_WORKER_PY)
+    assert "run_graph_curation_run_worker(" in src, (
+        "aperag/cli/indexing_worker.py is missing the task #31 Phase A1 "
+        "graph_curation_run worker lane. Without it, the indexing-worker "
+        "deployment boots but no process consumes q:graph_curation_run, "
+        "so manual / cron full-sweep runs sit forever in PENDING. "
+        "See spec § 3.1.1 + § 5.2.a."
+    )
+
+
+def test_graph_curation_service_does_not_execute_run_inline():
+    """Negative contract: ``GraphCurationService.start_run`` MUST NOT
+    invoke ``generate_graph_curation_run_task`` directly (neither
+    ``asyncio.create_task(asyncio.to_thread(...))`` nor a sync call) —
+    that would re-introduce the pre-task-#17 footgun where the API
+    process owns the merge sweep execution.
+
+    The legitimate post-A1 reference is the ``logger`` / docstring /
+    comment that *describes* the historical pattern; we look for
+    actual call syntax (``generate_graph_curation_run_task(`` with a
+    paren) only.
+    """
+    src = _read(GRAPH_CURATION_SERVICE_PY)
+    # Strip lines that are purely comments / docstrings — we only care
+    # about real call sites on executable lines.
+    offending_calls: list[str] = []
+    for lineno, raw_line in enumerate(src.splitlines(), start=1):
+        line = raw_line.strip()
+        if line.startswith("#"):
+            continue
+        if "generate_graph_curation_run_task(" in line:
+            offending_calls.append(f"L{lineno}: {line}")
+    assert not offending_calls, (
+        "aperag/graph_curation/service.py invokes "
+        "generate_graph_curation_run_task(...) directly. After task #31 "
+        "Phase A1 the API process must only enqueue onto "
+        "q:graph_curation_run via runtime.queue.push_graph_curation_run(...); "
+        "the worker process is the sole executor (per spec § 3.1.1 + "
+        "§ 5.2.a + task #17 hard cut). Offending lines:\n" + "\n".join(offending_calls)
+    )
+
+
+def test_graph_curation_service_uses_push_graph_curation_run():
+    """Positive contract: ``GraphCurationService.start_run`` enqueues
+    via ``push_graph_curation_run`` (the only API-side path Phase A1
+    leaves intact)."""
+    src = _read(GRAPH_CURATION_SERVICE_PY)
+    assert "push_graph_curation_run(" in src, (
+        "aperag/graph_curation/service.py must call "
+        "runtime.queue.push_graph_curation_run(...) to dispatch a "
+        "graph curation run. Without this, manual run requests "
+        "succeed at the HTTP layer but nothing reaches the worker."
     )

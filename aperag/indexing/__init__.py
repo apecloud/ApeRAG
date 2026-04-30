@@ -66,6 +66,14 @@ from aperag.indexing.graph import (
     parse_kg_jsonl,
     serialize_kg_jsonl,
 )
+from aperag.indexing.graph_curation_run_orchestrator import (
+    DEFAULT_GRAPH_CURATION_RUN_CONCURRENCY,
+    GraphCurationRunDispatchPayload,
+    GraphCurationRunOrchestratorConfig,
+    drain_graph_curation_run_queue_sync,
+    run_graph_curation_run_worker,
+    run_graph_curation_run_worker_loop,
+)
 
 # Wave 3 T3.1 chunk 2: ``aperag.indexing.keyword_extract`` is no longer
 # re-exported here — eager import pulled the LLM completion stack into
@@ -285,6 +293,13 @@ __all__ = [
     "process_one_parse_task",
     "run_parse_worker",
     "run_parse_worker_loop",
+    # Graph curation run orchestrator (task #31 Phase A1)
+    "DEFAULT_GRAPH_CURATION_RUN_CONCURRENCY",
+    "GraphCurationRunDispatchPayload",
+    "GraphCurationRunOrchestratorConfig",
+    "drain_graph_curation_run_queue_sync",
+    "run_graph_curation_run_worker",
+    "run_graph_curation_run_worker_loop",
     # Reconciler (T2.1 + Wave 5 P4 stuck-parse re-enqueue)
     "RECONCILE_INTERVAL_SECONDS",
     "RECONCILE_BATCH_SIZE",
