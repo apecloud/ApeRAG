@@ -105,6 +105,30 @@ spec:
               value: {{ .Values.neo4j.NEO4J_PASSWORD | default "neo4j" | quote }}
               {{- end }}
             {{- end }}
+            {{- if .Values.nebula.enabled }}
+            - name: NEBULA_HOSTS
+              value: {{ .Values.nebula.NEBULA_HOSTS | quote }}
+            - name: NEBULA_USERNAME
+              {{- if .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+                  key: username
+              {{- else }}
+              value: {{ .Values.nebula.NEBULA_USERNAME | default "root" | quote }}
+              {{- end }}
+            - name: NEBULA_PASSWORD
+              {{- if .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+                  key: password
+              {{- else }}
+              value: {{ .Values.nebula.NEBULA_PASSWORD | default "nebula" | quote }}
+              {{- end }}
+            - name: NEBULA_SPACE_PREFIX
+              value: {{ .Values.nebula.NEBULA_SPACE_PREFIX | default "aperag" | quote }}
+            {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           name: aperag-indexing-worker
           imagePullPolicy: {{ .Values.image.pullPolicy }}

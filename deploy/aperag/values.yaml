@@ -91,6 +91,27 @@ neo4j:
   # ⚠️ Recommend to use NEO4J_CREDENTIALS_SECRET_NAME
   NEO4J_PASSWORD: ""
 
+nebula:
+  enabled: false  # Enable/disable NebulaGraph integration (optional for graph features)
+  # Also set api.env.GRAPH_DB_TYPE=nebula to make Nebula the default graph backend.
+  # Comma-separated graphd endpoints, e.g. "nebula-cluster-graphd:9669".
+  NEBULA_HOSTS: "nebula-cluster-graphd:9669"
+  # The name of the Secret containing Nebula username and password (e.g. "username" and "password" keys).
+  # Example: "nebula-cluster-account-root" (references your Nebula credential Secret)
+  NEBULA_CREDENTIALS_SECRET_NAME: ""
+  # Username and Password Priority:
+  # 1. If NEBULA_CREDENTIALS_SECRET_NAME is set, attempts to fetch 'username' and 'password' from that Secret.
+  # 2. If NEBULA_CREDENTIALS_SECRET_NAME is empty, uses the direct values of NEBULA_USERNAME and NEBULA_PASSWORD.
+  # 3. If direct values are also empty, defaults to "root" / "nebula".
+  # ⚠️ Recommend to use NEBULA_CREDENTIALS_SECRET_NAME
+  NEBULA_USERNAME: "root"
+  # Password (Sensitive information, strongly recommended NOT to set directly in values.yaml):
+  # Only use this if you are NOT using NEBULA_CREDENTIALS_SECRET_NAME and accept the security implications.
+  # ⚠️ Strongly discourage directly setting sensitive passwords here. Use Secrets for production.
+  # ⚠️ Recommend to use NEBULA_CREDENTIALS_SECRET_NAME
+  NEBULA_PASSWORD: "nebula"
+  NEBULA_SPACE_PREFIX: "aperag"
+
 api:
   dataPath: /data/aperag
   replicaCount: 1
