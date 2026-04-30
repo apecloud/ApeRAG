@@ -300,6 +300,61 @@ def test_retrieve_drops_foreign_tenant_points(shared_client):
     assert retrieved_ids == set(ids_a), f"leaked foreign points: {retrieved_ids - set(ids_a)}"
 
 
+def test_retrieve_multitenant_mode_strict_requires_payload_key(shared_client):
+    """Pinned by task #61 P1-V4 BLOCKER from Weston msg=910cad66:
+    in multitenant mode the payload-level tenant filter must be
+    **strict** — a row MUST carry ``TENANT_PAYLOAD_KEY`` matching
+    this tenant. No "no payload key → pass through" branch in
+    multitenant mode, because the physical collection is shared,
+    and a missing-key row would otherwise expose to every tenant
+    on a ``retrieve(ids=...)`` call.
+
+    The legacy-mode permissive branch (no payload key passes
+    through) is exercised by
+    :func:`test_retrieve_legacy_mode_filters_stray_foreign_payload`;
+    this test pins the multitenant strict counterpart so a future
+    refactor can't unify them and silently re-open the leak.
+    """
+    a = _make_connector("col_aaaaaaaaaaaaa_a", client=shared_client)
+
+    # Seed three points directly on the shared multitenant collection:
+    # 1. ``{}`` payload (no TENANT_PAYLOAD_KEY at all — the stray
+    #    case Weston caught).
+    # 2. Own-tenant payload — must pass through.
+    # 3. Foreign-tenant payload — must be dropped.
+    no_payload_id = str(uuid.uuid4())
+    own_payload_id = str(uuid.uuid4())
+    foreign_payload_id = str(uuid.uuid4())
+    shared_client.upsert(
+        collection_name=a.collection_name,
+        points=[
+            rest.PointStruct(id=no_payload_id, vector=VEC_A, payload={}),
+            rest.PointStruct(
+                id=own_payload_id,
+                vector=VEC_A,
+                payload={TENANT_PAYLOAD_KEY: a.tenant.id},
+            ),
+            rest.PointStruct(
+                id=foreign_payload_id,
+                vector=VEC_A,
+                payload={TENANT_PAYLOAD_KEY: "col_some_other_tenant"},
+            ),
+        ],
+        wait=True,
+    )
+
+    out = a.retrieve([no_payload_id, own_payload_id, foreign_payload_id])
+    out_ids = {p.id for p in out}
+
+    # Strict: only own-tenant row passes.
+    assert no_payload_id not in out_ids, (
+        "multitenant mode must NOT pass-through rows missing TENANT_PAYLOAD_KEY — "
+        "shared collection means a missing key would leak to every tenant"
+    )
+    assert own_payload_id in out_ids, "own-tenant payload must pass through"
+    assert foreign_payload_id not in out_ids, "foreign-tenant payload must be dropped"
+
+
 def test_retrieve_legacy_mode_filters_stray_foreign_payload(shared_client):
     """Pinned by task #61 P1-V4: even in legacy (per-tenant physical
     collection) mode the ``retrieve()`` post-filter must drop any

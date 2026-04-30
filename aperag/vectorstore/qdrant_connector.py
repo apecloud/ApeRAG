@@ -741,22 +741,38 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             )
             for p in raw
         ]
-        # task #61 P1-V4 defense-in-depth: apply the same payload-level
-        # tenant filter to BOTH multitenant and legacy modes. In
-        # multitenant mode the filter is the primary tenant-isolation
-        # layer (the physical collection is shared). In legacy mode
-        # the primary isolation is the per-tenant physical collection
-        # name (``collection_name == tenant_id``) — this connector is
-        # already bound to a tenant-specific physical collection, so
-        # foreign-tenant ids cannot return cross-tenant data — but the
-        # ``TENANT_PAYLOAD_KEY in payload`` short-circuit means legacy
-        # rows that don't carry the payload key still pass through
-        # unchanged, while a stray multitenant-style row that ended up
-        # in a legacy collection (e.g. via tooling drift) would be
-        # filtered out. Lesson #14 multi-iteration cleanup family —
-        # legacy mode is preserved for migration rollback only; a
-        # future PR can drop the mode entirely once telemetry confirms
-        # zero production usage.
+        # task #61 P1-V4 defense-in-depth — payload-level tenant
+        # filter applied with **mode-specific semantics** (per Weston
+        # msg=910cad66 BLOCKER catch on initial commit: a uniform
+        # "no payload key → pass through" branch leaked stray ``{}``
+        # payload rows in the shared multitenant collection to every
+        # tenant on ``retrieve(ids=...)``):
+        #
+        # * Multitenant mode (shared physical collection): payload
+        #   key is the **primary** isolation layer. STRICT — a row
+        #   must carry ``TENANT_PAYLOAD_KEY`` matching this tenant.
+        #   No "no payload key → pass through" branch here, because
+        #   in the shared collection a missing key would expose the
+        #   row to every tenant, not just this one. ``upsert()``
+        #   stamps the key on every point we write, so the only way
+        #   a missing-key row reaches the collection is tooling
+        #   drift / migration drift, exactly the case this gate is
+        #   meant to catch.
+        # * Legacy mode (per-tenant physical collection): the
+        #   collection name is the primary isolation layer
+        #   (``collection_name == tenant_id``); the payload-level
+        #   filter is belt-and-braces. PERMISSIVE — a row that
+        #   doesn't carry the payload key still passes through
+        #   (typical legacy data shape pre-multitenant), but a stray
+        #   foreign-tenant payload gets dropped (catches tooling
+        #   drift / migration mistakes).
+        #
+        # Lesson #14 multi-iteration cleanup family — legacy mode is
+        # preserved for migration rollback only; a future PR can drop
+        # the mode entirely once telemetry confirms zero production
+        # usage.
+        if self.multitenant:
+            return [p for p in out if p.payload.get(TENANT_PAYLOAD_KEY) == self._tenant.id]
         return [
             p
             for p in out
