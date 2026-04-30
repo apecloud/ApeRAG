@@ -15,7 +15,7 @@ description: ApeRAG vector + graph adapter 跨实现行为兼容性审计 + capa
 
 | # | 路径 | 现象 |
 | --- | --- | --- |
-| **P0-V1** | `aperag/vectorstore/qdrant_connector.py:668-670` | `retrieve()` legacy mode (`multitenant=False`) 不做 tenant filter — caller 传跨 tenant ID list 直接返回（**数据正确性 risk**）；Singapore 当前 `QDRANT_MULTITENANT=True` (Planetegg msg=41665d7e 实证) 无生产暴露，**不需 emergency hot-fix** |
+| ~~P0-V1~~ → **P1-V4** | `aperag/vectorstore/qdrant_connector.py:442-446` collection_name binding | **重新定性 (per Bryce msg=23a2f514 first-principles verify)**：legacy mode `collection_name = tenant_id` 是 **per-tenant physical collection 隔离**，不靠 `retrieve()` 内部 filter — connector 已绑定 tenant-specific collection，无 cross-tenant leak；下沉 P1 defense-in-depth 不对称（legacy 路径少一层 belt-and-braces filter，未来 legacy mode 删除候选）+ Planetegg msg=41665d7e Singapore `QDRANT_MULTITENANT=True` 无生产暴露 |
 | **P0-V2** | `aperag/vectorstore/qdrant_connector.py:293-298` | filter translation 未知 type **silent return None** + log warning → 静默不带 filter 返全集（PGVector `pgvector_connector.py:254-258` 同 case **fail-loud TypeError**） |
 | **P0-V3** | `aperag/vectorstore/pgvector_connector.py:545-547` vs `qdrant_connector.py:626` | Score threshold 跨 distance metric 解释方向不一致：PGVector L2/dot 取负保「higher=better」，Qdrant 直接传 raw distance — 同 score_threshold 在 cosine OK，L2/dot 上 cutoff 范围发散 |
 | **P0-V4** | `aperag/vectorstore/base.py:130-137` docstring | "higher = better" 说明，但 Qdrant native distance 方向无 guard — 未来若改 score 方向 → silent 排序倒过来 |
@@ -51,7 +51,7 @@ description: ApeRAG vector + graph adapter 跨实现行为兼容性审计 + capa
 
 | # | 路径 | 现象 |
 | --- | --- | --- |
-| P2-S1 | `aperag/graph_curation/alias_map.py:resolve_canonical` + `alias_redirect_store.py:expand_neighbors_n_hops` | per-node `asyncio.gather` 在 PG 连接池吃紧时放大连接压力（Singapore 实证 stack `TooManyConnectionsError` per msg=db7fb085）— P2 性能/接口项候选 batch resolve 改造 |
+| P2-S1 | `aperag/graph_curation/alias_map.py:resolve_canonical` + `alias_redirect_store.py:expand_neighbors_n_hops` | per-node `asyncio.gather` 在 PG 连接池吃紧时放大连接压力（Singapore 实证 stack `TooManyConnectionsError` per msg=db7fb085）— P2 性能/接口项候选 batch resolve 改造。**量化 (per Planetegg msg=eb9de4b0)**：`/graphs` overview seed 上限 `max_nodes * 2`（default 1000 → 2000 connections）；`/graphs/hybrid` default 1000 / max 5000 — P2 batch resolve 优先级跟这条 caller chain 量化对应 |
 | P0-Env | Singapore api 2 副本 + 没有独立 indexing-worker deployment | task #17 hard cut 没 deploy → API + worker 同进程导致连接池放大；**deployment fix 不在本 spec scope**（task #17 deploy runbook 已 ready，huangzhangshu lane 跟进） |
 
 ### 1.4 Workflow gate — chenyexuan PR #1926 in flight
@@ -68,22 +68,32 @@ cuiwenbo P1+P3 候选见 § 1.1。dongdong task #71 deploy/typed schema lane in_
 
 按 Weston msg=85e527e3 + msg=65cf3b8b 三层框架 + earayu2 directive 「明显行为差异（影响上层 / 报错 / 数据错误）必修」:
 
-### 2.1 P0 CRITICAL（数据正确性 risk，立即 hot-fix 候选）
+### 2.1 P0 CRITICAL（数据正确性 risk → 重新定性后无 hot-fix）
 
-- **P0-V1 cross-tenant data leak**（`qdrant_connector.py:668-670`）: Qdrant legacy mode 跨 tenant retrieve 返回 — 等 Bryce + Planetegg 实证生产启用情况 → 启用即立即 hot-fix（不等 spec lock）
+- ~~P0-V1 cross-tenant leak~~ → **下沉 P1-V4 defense-in-depth 不对称**（per Bryce msg=23a2f514 first-principles verify：legacy mode physical collection 隔离已 cover，无 leak）
 
-### 2.2 P0（必须一致 — 影响上层正确性）
+### 2.2 P0（必须一致 — 影响上层正确性，per Weston msg=13dd5e91 BLOCKER 修订 score normalization 升回 P0）
 
-- **P0-V2** filter translation silent divergence: Qdrant fail-silent unfiltered 全集 vs PGVector fail-loud — Lesson #12 v8 fake guardrail anti-pattern 应用
-- **P0-G1** `bulk_upsert_entity_with_lineage_parts` 跨 backend 行为差异 + 0 test coverage — bulk write atomicity / batch limit / error handling 必须 contract 一致
-- **P0-W1** `compat-test.yml` paths filter dead reference — workflow gate 形同虚设 — 解锁所有其他 P0 验证能力前提（**PR #1926 in flight**）
+- **P0-V2 / P0-A** (Bryce fix PR scope): filter translation silent divergence: Qdrant fail-silent `return None` 退化 unfiltered 全集 vs PGVector fail-loud — Lesson #12 v8 fake guardrail anti-pattern 应用
+- **P0-V3+V4 / P0-B** (Bryce fix PR scope): score normalization 跨 distance metric 解释方向不一致（P0 必修 per Weston msg=13dd5e91 — score 方向是 caller 语义硬契约，FE/API/MCP 不能在 PGVector/Qdrant 间看到反向含义）：
+  - PGVector L2/dot 取负保「higher=better」+ Qdrant 直传 raw distance 行为分化
+  - cuiwenbo msg=dfebf706 surface FE 显示语义反向（score 0.05 vs 0.95）= 同根因
+  - 修法：base contract 强制声明 0-1 + higher=better similarity；Qdrant L2/dot 加 sigmoid normalize；boundary test 跨 metric 全 enum coverage
+- **P0-G1** `bulk_upsert_entity_with_lineage_parts` 跨 backend 行为差异 + 0 test coverage — bulk write atomicity / batch limit / error handling 必须 contract 一致（**冬柏 PR #1927 boundary test 已 deliver in flight**）
+- **P0-W1** `compat-test.yml` paths filter dead reference — workflow gate 形同虚设 — 解锁所有其他 P0 验证能力前提（**chenyexuan PR #1926 in flight**）
+- **P0-D1** Helm `indexing-worker-deployment.yaml` 缺 Neo4j env/secret 注入 vs API deployment（per dongdong msg=4201465a + cuiwenbo msg=bcec38ad root cause）— Singapore graph viz 故障真正 root cause 之一（worker 写入侧凭据漂移 → graph 写入静默失败 → 0 entity / 0 relation + read 失败 toast 混淆）。**dongdong PR #1929 in flight**
 
 ### 2.3 P1（允许差异但显式 declaration）
 
 - **P1-V1** collection init failure 行为分化（fail-silent vs fail-loud）— 统一 fail-loud + retry helper
-- **P1-V2** vector score normalization 跨 adapter 显示反向 — backend 统一 score 语义（distance OR similarity 选一个），FE 保持简单
+- **P1-V2** Batch upsert atomicity (atomic vs best-effort) — explicit capability declaration
+- **P1-V3** Filter Or 语义 (Qdrant should-only match 全集 risk) — 拒绝 empty Or parts + boundary test 跨 adapter 命中相同集合
+- **P1-V4 / 原 P0-V1 下沉**：Qdrant legacy mode defense-in-depth 不对称（physical collection 隔离已 cover，但 query filter 不对称 + legacy mode 删除候选 follow-up — Lesson #14 多轮迭代收尾）
 - **P1-G1** `remove_relation_lineage_member` test gap — boundary test 钉 dual-side rewrite invariant
 - **P1-G2** `list_entities` pagination/sort stability — explicit capability declaration（同分排序允许差异，order key 必稳定）
+- **P1-D1** e2e shape matrix 缺 3 组合 (`qdrant+postgres` / `pgvector+neo4j` / `pgvector+nebula`) (per dongdong msg=4201465a) — 建议 nightly/manual 或 DB-compat change targeted matrix
+- **P1-D2** Helm Nebula 缺 first-class dependency/secret（只有 `api.env.NEBULA_*`，无等价 dependency/secret values）— explicit deploy capability/degradation declaration 或补 first-class Nebula deploy path
+- **P1-D3** web typed schema 只暴露 `graph_backend_type`，缺 vector backend / capability / degradation 结构化暴露 — backend contract 先补字段或 endpoint 后 FE 才能显示「允许差异但显式」
 
 ### 2.4 P2（性能优化 / 接口语义）
 
@@ -176,12 +186,13 @@ P0/P1 contract 锁定后启动:
 - 每条 P1 差异: 行为统一 OR explicit capability declaration in adapter Protocol docstring + `typed schema` 暴露 capability flag
 - FE 消费侧（cuiwenbo / dongdong lane）按 capability flag 显示对应 UI
 
-### 5.3 boundary test gate
+### 5.3 boundary test gate (per Weston msg=13dd5e91 BLOCKER 修订 — score normalization test 显式)
 
 - 现有 G1-G19 + `test_modularization_boundaries.py` + `test_worker_di_parity.py` + `test_no_rerank_in_mcp.py` + `test_graph_window_caps_co_scale.py` 不破坏
 - 新加 `test_no_silent_filter_fallback_in_vector.py` 钉死 P0-V2 invariant
-- 新加 `test_cross_tenant_isolation_in_vector.py` 钉死 P0-V1 invariant
-- `test_lineage_graph_compat.py` 加 `bulk_upsert_entity_with_lineage_parts` + `remove_relation_lineage_member` + `list_entities` 3 method 跨 backend test
+- 新加 `test_score_normalization_in_vector.py` 钉死 P0-V3+V4 invariant：跨 (PGVector × cosine/L2/dot) × (Qdrant × cosine/L2/dot) 全 6 cell parametrize，同 embedding × 同 query 验证 score ∈ [0,1] + 排序一致
+- 新加 `test_cross_tenant_isolation_in_vector.py` 钉死 P1-V4 defense-in-depth invariant（即使 collection-level 隔离成立，也加 query-level filter 钉跨 mode 一致）
+- `test_lineage_graph_compat.py` 加 `bulk_upsert_entity_with_lineage_parts`（**冬柏 PR #1927 已 deliver**：38 cases incl. zero-side-effect + replay idempotency per `b2234aee`）+ `remove_relation_lineage_member` + `list_entities` 3 method 跨 backend test
 
 ### 5.4 e2e smoke
 
@@ -213,10 +224,13 @@ P0/P1 contract 锁定后启动:
 
 - earayu2 directives: `#indexing优化` msg=8b989470 (DB 兼容审计) + msg=2bad8e75 (全员协作) + msg=f26b703e (主动参与)
 - huangheng grep 实证: msg=ed2f2973 (3 vector P0)
-- 冬柏 testing scan: msg=3e93bb64 (compat-test paths + 3 method gap)
+- Bryce vector audit: msg=8e895471 (11 finding) + msg=23a2f514 (P0-V1 first-principles 重新定性)
+- 冬柏 testing scan: msg=3e93bb64 (compat-test paths + 3 method gap) + PR #1927 / commit `b2234aee`
 - chenyexuan workflow gap: msg=f298011e + PR #1926
-- cuiwenbo FE audit: msg=dfebf706 (3 FE 候选)
-- Planetegg SRE: msg=db7fb085 (Singapore alias gather connection pool) + msg=ec358a3e (data 口径)
+- cuiwenbo FE audit: msg=dfebf706 (3 FE 候选) + msg=bcec38ad (deploy root-cause connection)
+- dongdong deploy: msg=4201465a (P0-D1 + 3 P1 audit findings) + PR #1929
+- Planetegg SRE: msg=db7fb085 (Singapore alias gather connection pool) + msg=41665d7e (Singapore multitenant verify) + msg=eb9de4b0 (P2-S1 quantification)
+- Weston 三层框架: msg=85e527e3 + msg=65cf3b8b + msg=13dd5e91 (BLOCKER score normalization P0 confirm)
 - task #30 spec v1: [`task-30-graph-chunk-window-spec-v1.md`](./task-30-graph-chunk-window-spec-v1.md)
 - task #32 MCP 审计 spec v1: [`task-32-mcp-audit-spec-v1.md`](./task-32-mcp-audit-spec-v1.md)
 - task #17 任务系统不变式: [`task-system-invariants.md`](./task-system-invariants.md)
