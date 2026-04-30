@@ -16,9 +16,10 @@
 
 Persists user-driven entity merge intent. The :class:`AliasMapRepository`
 is the canonical write/read surface; downstream consumers use the two
-methods :meth:`AliasMapRepository.resolve_canonical` (read) and
-:meth:`AliasMapRepository.upsert_alias` (write, with cycle reject and
-transitive flatten).
+methods :meth:`AliasMapRepository.resolve_canonical` (read,
+single-name) / :meth:`AliasMapRepository.resolve_canonical_many` (read,
+batch) and :meth:`AliasMapRepository.upsert_alias` (write, with cycle
+reject and transitive flatten).
 
 Design notes
 ------------
@@ -41,6 +42,7 @@ Design notes
 from __future__ import annotations
 
 import logging
+from typing import Sequence
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,6 +82,11 @@ class AliasMapRepository(AsyncBaseRepository):
         (i.e. ``name`` is already canonical or has never been merged).
         Returns at most one indirection because :meth:`upsert_alias`
         flattens transitively at write time.
+
+        Single-name reads are cheap; for batched (n > 1) callers prefer
+        :meth:`resolve_canonical_many` which folds N lookups into one
+        SQL roundtrip — see task #61 P2-S1 (Planetegg msg=db7fb085 +
+        msg=1314ac59 batch alias resolution P2-HIGH).
         """
         if not name:
             return name
@@ -91,6 +98,86 @@ class AliasMapRepository(AsyncBaseRepository):
             return str(row.canonical_name)
 
         return await self._execute_query(_op)
+
+    async def resolve_canonical_many(
+        self,
+        *,
+        collection_id: str,
+        names: Sequence[str],
+    ) -> dict[str, str]:
+        """Batch alias resolution — single SQL ``SELECT ... WHERE ... IN``
+        roundtrip (task #61 P2-S1+S2).
+
+        Returns a mapping from each input name to its canonical form.
+        Names with no alias row map to themselves (mirrors
+        :meth:`resolve_canonical` semantics). Empty / falsy names also
+        map to themselves so callers don't have to filter input.
+
+        Why this exists: pre-task-#61-P2 the only public API was the
+        per-name :meth:`resolve_canonical`. Callers that needed to
+        resolve N names did so via ``asyncio.gather`` of N parallel
+        coroutines — each one acquired a separate ``AsyncSession`` /
+        DB connection. On
+        :meth:`LineageGraphStoreWithAliasRedirect.expand_neighbors_n_hops`
+        N is the seed cap of the calling endpoint, which can be large:
+
+        * ``GET /api/v2/collections/{id}/graphs?max_nodes=1000``
+          → up to **2 × max_nodes = 2000** seeds (per Planetegg
+          msg=db7fb085 + spec § 2.4 P2-S1 quantification).
+        * ``GET /graphs/hybrid``: default 1000 / max 5000 seeds.
+
+        2000 parallel ``resolve_canonical`` calls translate to 2000
+        connection-pool checkouts — Singapore production observed PG
+        connection saturation on the ``/graphs`` endpoint
+        (Planetegg msg=4043adf4 SRE diagnostic).
+
+        Implementation: in-place dedupe + single ``SELECT alias_name,
+        canonical_name FROM aperag_lineage_entity_alias WHERE
+        collection_id = ? AND alias_name IN (...)`` reads all matching
+        rows in one shot. Names absent from the result set fall back
+        to themselves. Total connections checked out: **1**.
+
+        Order of the input is preserved on the dict's iteration order
+        (Python ``dict`` preserves insertion order since 3.7).
+        """
+        # Map empty / falsy names to themselves up-front, then dedupe
+        # the rest. ``dict`` insertion order preserves caller order.
+        out: dict[str, str] = {}
+        unique_names: list[str] = []
+        seen: set[str] = set()
+        for n in names:
+            if not n:
+                out[n] = n
+                continue
+            if n in seen:
+                continue
+            seen.add(n)
+            unique_names.append(n)
+        if not unique_names:
+            return out
+
+        async def _op(session: AsyncSession) -> dict[str, str]:
+            stmt = select(
+                LineageEntityAlias.alias_name,
+                LineageEntityAlias.canonical_name,
+            ).where(
+                LineageEntityAlias.collection_id == collection_id,
+                LineageEntityAlias.alias_name.in_(unique_names),
+            )
+            result = await session.execute(stmt)
+            return {str(row[0]): str(row[1]) for row in result.all()}
+
+        resolved = await self._execute_query(_op)
+
+        # Restore caller order: every input ``name`` (in the order it
+        # was passed) gets a key in the output. Names that didn't show
+        # up in the SQL result map to themselves (no alias row → name
+        # is already canonical).
+        for n in names:
+            if n in out:  # already added (empty / falsy short-circuit)
+                continue
+            out[n] = resolved.get(n, n)
+        return out
 
     async def list_aliases_pointing_at(self, *, collection_id: str, canonical_name: str) -> list[str]:
         """Return every ``alias_name`` whose row points at

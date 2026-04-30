@@ -52,11 +52,37 @@ from aperag.indexing.graph import (
 
 
 class _FakeAliasRepo:
+    """Stub implementing both ``resolve_canonical`` (single-name, used
+    by the upsert / get / delete redirect paths) and
+    ``resolve_canonical_many`` (batch, used by
+    ``expand_neighbors_n_hops`` per task #61 P2-S1+S2).
+
+    Tracks call counts so tests can pin the call-graph (e.g. the
+    expand path goes through the batch primitive once, not N
+    single-name calls)."""
+
     def __init__(self, mapping: dict[str, str] | None = None) -> None:
         self._mapping = mapping or {}
+        self.resolve_canonical_calls = 0
+        self.resolve_canonical_many_calls = 0
+        self.last_many_names: list[str] | None = None
 
     async def resolve_canonical(self, *, collection_id: str, name: str) -> str:
+        self.resolve_canonical_calls += 1
         return self._mapping.get(name, name)
+
+    async def resolve_canonical_many(self, *, collection_id: str, names) -> dict[str, str]:
+        self.resolve_canonical_many_calls += 1
+        self.last_many_names = list(names)
+        out: dict[str, str] = {}
+        for n in names:
+            if not n:
+                out[n] = n
+                continue
+            if n in out:
+                continue
+            out[n] = self._mapping.get(n, n)
+        return out
 
 
 def _record(name: str = "Apple") -> EntityRecord:
@@ -349,6 +375,80 @@ async def test_expand_neighbors_empty_seeds_passes_through():
     )
     await decorator.expand_neighbors_n_hops(entity_names=[], hops=1)
     inner.expand_neighbors_n_hops.assert_awaited_once_with(entity_names=[], hops=1)
+
+
+# ---------------------------------------------------------------------
+# task #61 P2-S1+S2 — expand_neighbors goes through batch alias
+# resolution (not per-name asyncio.gather)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_uses_batch_alias_resolution():
+    """Pinned by task #61 P2-S1+S2 (Planetegg msg=db7fb085 +
+    msg=1314ac59 P2-HIGH): the per-anchor ``resolve_canonical``
+    fan-out via ``asyncio.gather`` was the Singapore PG connection
+    saturation root cause. After this PR ``expand_neighbors_n_hops``
+    MUST call ``resolve_canonical_many`` exactly once per invocation
+    — never falls back to per-name ``resolve_canonical`` regardless
+    of seed count.
+
+    A regression that re-introduces the gather pattern would either:
+    (a) fall back to per-name ``resolve_canonical`` calls (caught by
+    the call-count assertion below), or (b) call
+    ``resolve_canonical_many`` once *per name* (caught by the count
+    == 1 assertion).
+    """
+    inner = AsyncMock()
+    inner.expand_neighbors_n_hops = AsyncMock(return_value=([], []))
+    repo = _FakeAliasRepo({"Alicia": "Alice", "Bobby": "Bob"})
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=repo,
+        collection_id="col-1",
+    )
+
+    # Use a "spec-cap-shaped" 5-name seed — large enough to make
+    # per-name fan-out visible if it were re-introduced.
+    await decorator.expand_neighbors_n_hops(
+        entity_names=["Alicia", "Bobby", "Charlie", "Dorothy", "Edward"],
+        hops=2,
+    )
+
+    # The single batch call carries every input name in order.
+    assert repo.resolve_canonical_many_calls == 1
+    assert repo.last_many_names == ["Alicia", "Bobby", "Charlie", "Dorothy", "Edward"]
+    # Per-name gather path is gone.
+    assert repo.resolve_canonical_calls == 0
+    # Inner saw the deduped + canonicalised anchor list.
+    inner.expand_neighbors_n_hops.assert_awaited_once_with(
+        entity_names=["Alice", "Bob", "Charlie", "Dorothy", "Edward"],
+        hops=2,
+    )
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_large_seed_cap_uses_single_batch_call():
+    """Spec § 2.4 P2-S1 quantification: ``GET
+    /api/v2/collections/{id}/graphs?max_nodes=1000`` produces up to
+    ``2 × max_nodes = 2000`` seeds. Pinned that even at this seed
+    cap the worker-side alias resolution stays at one batch call.
+    """
+    inner = AsyncMock()
+    inner.expand_neighbors_n_hops = AsyncMock(return_value=([], []))
+    repo = _FakeAliasRepo()  # no aliases — every input maps to itself
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=repo,
+        collection_id="col-1",
+    )
+    seeds = [f"entity_{i}" for i in range(2000)]
+
+    await decorator.expand_neighbors_n_hops(entity_names=seeds, hops=1)
+
+    assert repo.resolve_canonical_many_calls == 1
+    assert len(repo.last_many_names or []) == 2000
+    assert repo.resolve_canonical_calls == 0
 
 
 # ---------------------------------------------------------------------
