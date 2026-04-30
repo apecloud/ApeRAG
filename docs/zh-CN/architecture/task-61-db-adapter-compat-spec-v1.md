@@ -108,13 +108,11 @@ cuiwenbo P1+P3 候选见 § 1.1。dongdong task #71 deploy/typed schema lane in_
 
 ### 3.1 必须做（Hard scope）
 
-#### 3.1.1 P0 hot-fix path（CRITICAL only）
+#### 3.1.1 ~~P0 hot-fix path~~（重新定性后无 hot-fix 必修）
 
-P0-V1 Qdrant legacy mode cross-tenant filter — Bryce/Planetegg 实证生产启用后立即 hot-fix PR：
-- `qdrant_connector.py:retrieve()` legacy mode 加 Python 后过滤层
-- `tests/integration/compat/test_vector_compat.py` 加 cross-tenant boundary test 钉死
+Bryce msg=23a2f514 first-principles verify 后 P0-V1 下沉 P1-V4 defense-in-depth — Qdrant legacy mode physical collection 隔离已 cover，无 cross-tenant leak，无 hot-fix 紧迫性。Planetegg msg=41665d7e 实证 Singapore `QDRANT_MULTITENANT=True` 无生产 legacy mode 启用。
 
-不等 task #61 spec v1 全 ratify。
+P1-V4 处理路径：跟其他 P1 一起 explicit declaration / 或随 legacy mode deprecation follow-up（Lesson #14 多轮迭代收尾）一并删除 legacy code path。
 
 #### 3.1.2 P0 必须一致 contract list（task #61 主线）
 
