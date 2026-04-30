@@ -883,6 +883,13 @@ async def test_bulk_upsert_entity_with_lineage_parts_rejects_mixed_names(store, 
                 (_entity("Bob"), _LM_B_V1),
             ],
         )
+    # Per @huangheng msg=99b5ffd5 + @ziang msg=84f5c3cc NIT — Lesson
+    # #12 v6.4 (aggregation chain): a backend that raised AFTER writing
+    # the first row would silently leak partial state. Pin
+    # "raise-then-zero-side-effect" so any backend that swaps validation
+    # order regresses loudly.
+    assert await s.get_entity("Alice") is None, "raise must occur before any row write"
+    assert await s.get_entity("Bob") is None, "raise must occur before any row write"
 
 
 @pytest.mark.asyncio
@@ -985,3 +992,30 @@ async def test_bulk_upsert_entity_with_lineage_parts_entity_type_last_wins(store
     got = await s.get_entity("Alice")
     assert got is not None
     assert got.entity_type == "researcher", f"last bulk part's entity_type wins; got {got.entity_type}"
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_entity_with_lineage_parts_replay_is_idempotent(store, collection_id):
+    """Per Protocol contract `Forward-only retry safety: the dedup key
+    is per-part, so a mid-flight crash + retry replays each tuple
+    idempotently`. Two consecutive bulk calls with the same key MUST
+    collapse to one lineage member (idempotent) AND the second call's
+    description MUST overwrite the first (last-wins on replay).
+
+    Per @huangheng msg=99b5ffd5 + @ziang msg=84f5c3cc NIT — replay
+    safety is the critical retry-correctness invariant; a backend that
+    appended on replay (instead of dedup-then-replace) would silently
+    duplicate lineage members under retry.
+    """
+
+    _, s = store
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[(_entity("Alice", description="v1-first"), _LM_A_V1)],
+    )
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[(_entity("Alice", description="v1-replay"), _LM_A_V1)],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    matching = [lm for lm in got.source_lineage if lm.document_id == "doc-A" and lm.parse_version == "v1"]
+    assert len(matching) == 1, f"replay must be idempotent (no duplicate member); got {len(matching)}"
