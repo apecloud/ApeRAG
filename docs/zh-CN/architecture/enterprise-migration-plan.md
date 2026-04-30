@@ -88,7 +88,13 @@ aperag-enterprise/
    ```
    开源目录里的文件保持原有 Apache 2.0 header。CI 检查文件路径和 header 一致性, 不一致就 build 红。
 
-3. **数据库表分层**: 企业新加的表用 `enterprise_` 前缀 (比如 `enterprise_license_keys`), 但 alembic migration 仍走开源主链, **不开 alembic 多 head** (多 head 在双仓维护下会很脆弱, 团队 huangheng 在讨论里专门提过这个坑)。
+3. **数据库表分层** (per Weston msg=fedaba61 BLOCKER 修正 — 防止 EE-only migration 隐式混进 OSS 主链):
+   - **开源 alembic chain 只放开源 schema 变更**, EE-only 不进
+   - **企业独占表默认放 `enterprise/migrations/`**, 用独立版本表或独立迁移工具 (跟 OSS alembic 完全分开)
+   - **部署顺序**: 先跑开源 alembic migration → 再跑企业 migration (两个独立链, 各自线性)
+   - **如果某个 schema 改动两边都需要**: 必须作为 `oss-safe` PR 进开源主链, 再同步回企业仓 — 不允许把 EE-only revision 混进 OSS 主链, 也不允许 OSS revision `down_revision` 接到 EE revision
+   - 企业新加的表用 `enterprise_` 前缀 (比如 `enterprise_license_keys`) 防表名冲突
+   - 「不开 alembic 多 head」准确表述: 开源链和企业链**各自线性**, 不在同一个 alembic head 里交叉 (不是说两个仓共用一个 head, 而是各自独立 head 各自线性)
 
 4. **配置文件分层**: 企业版独占的环境变量 / Helm values / connector 配置, 都放企业目录, 开源 deploy 路径不带任何企业字段。
 
@@ -161,12 +167,11 @@ git merge upstream/main   # 合并到企业仓主分支
 启动企业版迁移之前必须满足两个条件:
 
 1. **earayu2 确认渐进式方向** (本文档 ratify)
-2. **当前 in-flight 工作收口**:
+2. **当前 in-flight 工作收口** (per Weston msg=fedaba61 NIT + PM msg=9dd572f0 修正 — POC 是独立 lane 不需等 X1-X5 全完成):
    - PR #1951 (可观测性 P0 spec) ratify + merge
    - PR #1952 v2 (可观测性需求对齐文档) 重写 + ratify + merge
-   - task #89 telemetry P0 子任务 X1-X5 dispatch + 完成
-   - task #11 GC orphan vector follow-up
-   - huangheng follow-up sediment fold-in queue (cr-checklist 累计 lesson)
+   - task #89 telemetry P0 子任务 X1-X5 **dispatch** (派单完成即可启动企业版 POC, 不需等子任务全 merge)
+   - 不阻塞: task #11 GC orphan vector follow-up + huangheng sediment fold-in queue (这些 backlog lane 不阻 POC 启动)
 
 为什么要等 in-flight 收口: 这些 epic 都在 `apecloud/ApeRAG` 主仓上正常推进, 如果同时切主仓写权 + 启动迁移, 会让所有 in-flight PR 不知道往哪个仓提, 造成混乱。huangheng 在讨论里专门提了这个时序约束 (msg=1320ff5a), 团队一致同意。
 
@@ -227,7 +232,7 @@ PM @不穷 推进节奏。
 
 ## 9. 不做什么 (避免折腾)
 
-- **不做** 一次性把现有 OSS 代码重组到 `packages/community-core/` 这种新目录 — 风险太大, 牵动太多 (Weston 在讨论里专门 push back 了我前面这个方案 msg=846de8f2)
+- **不做** 一次性把现有 OSS 代码重组到 `packages/community-core/` 这种新目录 — 风险太大, 牵动太多 (Weston msg=846de8f2 push back 了我 msg=f5d2cd8c 的 `packages/community-core` 重组方案; 我 msg=9cabf57c 撤回)
 - **不做** 用 `git filter-repo --subdirectory-filter` 自动重写开源仓主分支历史 — 会破坏现有社区 fork / PR 评论里的 commit hash 引用, 信誉成本高 (Weston msg=3b42599f)
 - **不做** 把开源仓锁成 bot-only 写权限 — 切断社区 PR 入口 (Weston msg=30f96387)
 - **不做** 单仓多分支 / 单仓 build flag 编译切换 — 开源用户 git clone 能看到企业代码, 知识产权 / 法律风险大
