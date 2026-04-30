@@ -2843,8 +2843,6 @@ export interface components {
              */
             summary?: string | null;
             config?: components["schemas"]["CollectionConfig-Input"] | null;
-            /** @description Read-only deployment vector backend identity + static capability matrix. Projected from ``settings.vector_db_type``; not editable per collection. */
-            vector_backend?: components["schemas"]["VectorBackendInfo"] | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
             /** Created */
@@ -2882,8 +2880,6 @@ export interface components {
              */
             summary?: string | null;
             config?: components["schemas"]["CollectionConfig-Output"] | null;
-            /** @description Read-only deployment vector backend identity + static capability matrix. Projected from ``settings.vector_db_type``; not editable per collection. */
-            vector_backend?: components["schemas"]["VectorBackendInfo"] | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
             /** Created */
@@ -2901,6 +2897,7 @@ export interface components {
              * @description Publication time, null when not published
              */
             published_at?: string | null;
+            readonly vector_backend: components["schemas"]["VectorBackendInfo"] | null;
         };
         /** CollectionConfig */
         "CollectionConfig-Input": {
