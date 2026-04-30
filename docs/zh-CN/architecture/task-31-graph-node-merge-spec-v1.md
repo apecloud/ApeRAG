@@ -67,7 +67,7 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
 ### 2.2 P1（允许差异但显式 declaration）
 
 - **P1-31-A** dedup detection 算法 capability matrix：name exact match (case-insensitive normalize) / name fuzzy (Levenshtein / Jaro-Winkler) / type compatibility / vector embedding similarity / source_chunk overlap — 各算法 trigger 条件 + threshold 显式 declare collection-level config
-- **P1-31-B** suggestion store schema：**复用现有** `GraphCurationSuggestion` table (`aperag/domains/knowledge_graph/db/models.py:107`) — 仅 extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`，per § 3.1.6 7-state machine）+ 加 `evidence_refs` field（per task #61 evidence_refs 模式）。**不引入新 `merge_suggestion` table**（per Bryce + Weston BLOCKER 1，避免 schema 漂移 + Lesson #14 multi-iteration cleanup family）。
+- **P1-31-B** suggestion store schema：**复用现有** `GraphCurationSuggestion` table (`aperag/domains/knowledge_graph/db/models.py:107`) — 仅 extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`，per § 3.1.6 7-state machine）+ 加 `evidence_refs` field（per task #61 evidence_refs 模式）。**不引入新 `merge_suggestion` table**（per Bryce + Weston BLOCKER 1，避免 schema 漂移 + Lesson #14 multi-iteration cleanup family）。
 - **P1-31-C** scan trigger 策略：(a) 周期 cron（reconciler 30s poll 已存在，可 piggyback）+ (b) 显式 manual trigger API（用户面 /admin "扫描重复实体" 按钮）+ (c) 文档全部入库后自动触发（new entity batch surface 时 enqueue scan）— 三策略并存 collection-level config 选启用
 
 ### 2.3 P2（性能优化）
@@ -116,7 +116,7 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
 
 #### 3.1.2 suggestion store + reviewable workflow（per Weston msg=d0e00405 边界 3 + dongdong msg=11813333 BLOCKER read contract fold + Bryce msg=74f33e19 + Weston msg=2b441dc2 BLOCKER 1 reuse existing table）
 
-- **复用现有** PG table `GraphCurationSuggestion` (`aperag/domains/knowledge_graph/db/models.py:107`) — **不引入新 `merge_suggestion` table**（per Bryce + Weston BLOCKER 1，避免 schema 漂移 + Lesson #14 multi-iteration cleanup family）。Phase A2 仅 extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`）+ 加 `evidence_refs` field（per task #61 evidence_refs 模式）。
+- **复用现有** PG table `GraphCurationSuggestion` (`aperag/domains/knowledge_graph/db/models.py:107`) — **不引入新 `merge_suggestion` table**（per Bryce + Weston BLOCKER 1，避免 schema 漂移 + Lesson #14 multi-iteration cleanup family）。Phase A2 仅 extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`）+ 加 `evidence_refs` field（per task #61 evidence_refs 模式）。
 - background task **只写 suggestion**（pending status）— 不调 `LineageEntityMerger` apply
 - **read API**（per dongdong msg=11813333 BLOCKER + cuiwenbo msg=61800dd6 NIT 1 + dongdong msg=c4d3ae32 收窄 — **复用 FE 现有 endpoint 不另起 path**）：
   - **复用** `GET /api/v2/collections/{id}/graphs/merge-suggestions?status=pending&limit=&cursor=` — list 分页 + status filter，跟 FE `client-api.ts:302` 现有 caller align（不破 typed schema）
@@ -124,13 +124,13 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
   - typed schema 扩展现有 `MergeSuggestionItem` (`web/src/features/knowledge-graph/types.ts:80`) 为 `MergeSuggestionView` display-ready shape：`id` + `collection_id` + `suggestion_batch_id` + `candidate_entity_ids` + `confidence_score` + `merge_reason` + `suggested_target_entity` + `evidence_refs[].document_id/chunk_id/parse_version`（per task #61 evidence_refs 模式新加）+ `affected_doc_count` + `created_at` + `status` + `reviewer_user_id` + `reviewed_at`（FE 现有 `operated_at` rename）
 - **action API**（**复用** FE 现有 endpoint per cuiwenbo msg=61800dd6 NIT 1 + dongdong msg=c4d3ae32）：
   - **复用** `POST /api/v2/collections/{id}/graphs/merge-suggestions/{suggestion_id}/action` body `{action: 'accept'|'reject'|'dismiss'}` — 不引入新 path 避免 typed schema 破坏 + FE 三处 caller (`client-api.ts:329`) 重写
-  - accept 时 enqueue worker → status `pending → accepted → applying → applied | apply_failed`（per § 3.1.6 状态机）
+  - accept 时 enqueue worker → status `pending → apply_pending → applying → applied | apply_failed`（per § 3.1.6 状态机；新 async path 写 `apply_pending`，**不写 `accepted`** — `accepted` 是 legacy sync handle_action terminal value，保留 backward-compat read-only）
   - reject/dismiss 仅改 status `pending → rejected | dismissed`，不 enqueue worker
   - 返回 updated `MergeSuggestionView`（不要 204 + refetch）
   - `SUGGESTION_ACTIONS` const FE 同步扩展 `dismiss` (FE 现有仅 `accept` | `reject`)
-- UI 状态机 contract：pending / accepted / rejected / dismissed 四态 + 空态 + 错误态 + 已处理态 typed schema 显式（per task #61 backend 收敛 contract pattern）— FE 仅消费不基于 backend 类型分支
+- UI 状态机 contract：pending / apply_pending / applying / applied / apply_failed / rejected / dismissed 7 新态 + legacy `accepted` read-only display + 空态 + 错误态 typed schema 显式（per task #61 backend 收敛 contract pattern）— FE 仅消费不基于 backend 类型分支；legacy `accepted` UI 显示等价于「已应用」终态（历史 sync 路径）
 - review audit trail：accept 调用记录 `reviewer_user_id` + `reviewed_at`，可回滚（rollback API 仅 admin role）
-- AlembicMigration **不建新 table** — 仅 extend `graph_curation_suggestions` table（status enum 加 4 新 value `APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED` + 加 `evidence_refs` field per task #61 evidence_refs 模式），chain 在 latest head 后
+- AlembicMigration **不建新 table** — 仅 extend `graph_curation_suggestions` table（status enum 加 4 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`，**现有 `ACCEPTED` 保留作 legacy terminal/back-compat read-only value**，新 async path 不再写 — 历史 `ACCEPTED` 在 sync `handle_action()` 末尾代表「merge 已执行完成」terminal semantic（per `aperag/graph_curation/service.py:534` 实证），新 async path 用 `apply_pending` 表示「用户已批准但未 apply」避免同名不同义；per dongdong msg=e7d7600a + Weston msg=013fdc47/14859580 + ziang msg=378455ad/c2228ba1 + dongdong msg=ceca6063 集体 converge）+ 加 `evidence_refs` field per task #61 evidence_refs 模式，chain 在 latest head 后
 
 #### 3.1.3 Wave 5 description-NULL 兼容 dedup 算法 + entity_type scope lock（per ziang msg=d6d9dc3c + dongdong msg=83783bc6 + Weston msg=78ab2267 三方 converge）
 
@@ -198,17 +198,21 @@ boundary test grep gate（per § 5.2）:
 | `pending` | scan 写入新 suggestion |
 | `dismissed` | 用户 dismiss action（不 enqueue worker） |
 | `rejected` | 用户 reject action（不 enqueue worker） |
-| `accepted` | 用户 accept action — enqueue worker |
+| `apply_pending` | 用户 accept action — enqueue worker（新 async path 决策态，不复用 `accepted` 避免历史 semantic 漂移） |
 | `applying` | worker 拿到 task 开始 apply |
 | `applied` | worker 成功 apply graph + audit trail 写入 |
 | `apply_failed` | worker apply 失败（保留 retry，retry 次数 cap） |
 
-跟 cuiwenbo msg=61800dd6 NIT 2 FE 现有 enum (`PENDING/ACCEPTED/REJECTED/EXPIRED`) align 选择：
-- spec lock **lowercase** + 新加 `dismissed/applying/applied/apply_failed` 4 enum value
-- FE typed schema 同步扩展 `MergeSuggestionStatus` (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat 历史 placeholder，新代码不再写入)
-- Migration chain 时序：PG enum 加 4 新 value（`alembic upgrade head` 跨 backend 跑过）
+⚠️ **legacy `ACCEPTED` semantic note**（per Weston msg=013fdc47/14859580 + ziang msg=378455ad/c2228ba1 + dongdong msg=ceca6063 集体 converge + architect 拍板 Option B）：
 
-测试可区分「用户已批准」「worker 已应用」「应用失败待重试」三状态。
+现有 `aperag/graph_curation/service.py:534` sync `handle_action()` 末尾 `suggestion.status = GraphCurationSuggestionStatus.ACCEPTED`（merge 已 sync 执行完成后写入），ACCEPTED 在历史代码中是 **terminal status = 「merge 已执行完成」**。新 async path 如果复用 `ACCEPTED` 表示「已批准但未 apply」会让旧数据和新数据同名不同义 → 引入新 enum value `apply_pending` 表示新 async 决策态，**`ACCEPTED` 保留作 legacy terminal/back-compat read-only value，新 async path 不再写**（FE typed schema 显示兼容 + DB 存在但新代码 zero-write）。
+
+跟 cuiwenbo msg=61800dd6 NIT 2 FE 现有 enum (`PENDING/ACCEPTED/REJECTED/EXPIRED`) align 选择：
+- spec lock **lowercase** + 新加 `dismissed/apply_pending/applying/applied/apply_failed` 5 enum value
+- FE typed schema 同步扩展 `MergeSuggestionStatus` (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat 历史 placeholder，新代码不再写入；`ACCEPTED` 同样保留作 legacy terminal read-only)
+- Migration chain 时序：PG enum 加 5 新 value `DISMISSED/APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`（`alembic upgrade head` 跨 backend 跑过）— `ACCEPTED` 保留 legacy semantic
+
+测试可区分「用户已批准（apply_pending）」「worker 应用中（applying）」「worker 已应用（applied）」「应用失败待重试（apply_failed）」四状态 + 历史 ACCEPTED legacy read。
 
 ### 3.2 P1 实施（capability matrix declaration）
 
@@ -234,9 +238,9 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
   - 推荐 owner：@Bryce / @ziang
 - **#31-A2 (extend)**：复用 `GraphCurationSuggestion` 现有 table + extend status enum
   - **不引入新 table** (per Bryce + Weston BLOCKER) — 复用 `aperag/domains/knowledge_graph/db/models.py:107` `GraphCurationSuggestion`
-  - status enum extend：现有 `PENDING/ACCEPTED/REJECTED/DISMISSED` + 新加 `APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`（per § 3.1.6 7-state machine）
-  - PG enum migration + FE typed schema sync (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat)
-  - boundary test (status transition + apply state machine)
+  - status enum extend：现有 `PENDING/ACCEPTED/REJECTED/DISMISSED/EXPIRED/SUPERSEDED` + 新加 `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`（per § 3.1.6 状态机；新 async path 写 `APPLY_PENDING` 不写 `ACCEPTED`，**`ACCEPTED` 保留作 legacy terminal/back-compat read-only value** — 历史 sync `handle_action()` 末尾 set ACCEPTED 代表「merge 已执行完成」terminal semantic per `service.py:534` 实证）
+  - PG enum migration + FE typed schema sync (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `ACCEPTED` / `EXPIRED` / `SUPERSEDED` 老值保留作 backward compat read-only)
+  - boundary test (status transition + apply state machine + `ACCEPTED` legacy read-only — 新代码 zero-write assertion)
   - 推荐 owner：@ziang（熟 graph_curation domain + Wave 7 §K.12.4）
 - **#31-A3 (fix)**：description-free refactor — Wave 5 invariant 修复 **6 个 detector/snapshot call site + 1 个 apply path**（per § 3.1.5 enumeration，不能写 4 处 — Lesson #14 multi-iteration cleanup 自身案例）
   - **detector / snapshot 6 call sites**：
@@ -273,7 +277,7 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
 ### 5.1 Phase A 完成标准
 
 - worker lane `graph_curation_run` 启动 + boundary test 钉**lane name symbolic appearance**（不 hardcode 计数，per Bryce + cuiwenbo + 冬柏 NIT）+ 独立 queue family `q:graph_curation_run`（不污染 `Modality`，per § 3.1.1）
-- 复用 `GraphCurationSuggestion` table + Alembic migration extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`），跨 backend (PG) `alembic upgrade head` 跑过 — **不建新 `merge_suggestion` table**
+- 复用 `GraphCurationSuggestion` table + Alembic migration extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`），跨 backend (PG) `alembic upgrade head` 跑过 — **不建新 `merge_suggestion` table**
 - dedup detection 复用现有 `MergeCandidateDetector` + extend 5 算法 capability matrix + collection-level config 暴露 typed schema
 - 复用现有 `/graphs/merge-suggestions` endpoint + extend `SUGGESTION_ACTIONS` 加 `dismiss` + UI review queue panel
 - description-free refactor 完整：**6 个 detector/snapshot call site + 1 个 apply path** (candidate_generation.py:43/179-181/196-197 + dto.py:59-65/101-105 + merge_candidate_detector.py:257-284 + merge_candidate_detector.py:322-328 + lineage_merge.py:246-317 apply variant) 全 fix + boundary test grep gate（per § 3.1.5）
@@ -293,12 +297,14 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
 
 #### 5.2.b async accept-apply 状态机 invariants（accept → enqueue worker → apply）
 
-- **7-state machine 完整覆盖**：`pending → dismissed | rejected | accepted → applying → applied | apply_failed`（per § 3.1.6），boundary test 钉每条 transition 边
-- **enum lowercase + dual-side**：PG enum 4 新 value `APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED` + FE typed schema `MergeSuggestionStatus` 同步扩展（Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat）
+- **7-state machine 完整覆盖**：`pending → dismissed | rejected | apply_pending → applying → applied | apply_failed`（per § 3.1.6；新 async path 写 `apply_pending`，**不写 `accepted`** — `accepted` 是 legacy sync `handle_action()` terminal value），boundary test 钉每条 transition 边 + 新代码 zero-write `accepted` assertion
+- **enum lowercase + dual-side**：PG enum 4 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED` + FE typed schema `MergeSuggestionStatus` 同步扩展（Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `ACCEPTED/EXPIRED/SUPERSEDED` 老值保留作 backward compat read-only）
+- **legacy `ACCEPTED` zero-write gate**：grep gate 钉 `aperag/graph_curation/` 新 async path 模块（`worker.py` / new merge worker）import allowlist 不含 `GraphCurationSuggestionStatus.ACCEPTED` 写入 — 仅 sync legacy `handle_action()` 路径允许（per Weston msg=013fdc47 + ziang msg=378455ad 集体 converge）
 - **description-free apply variant**：accept worker 仅调 `merge_entities_apply_description_free()` variant — allowlist 不含 `description`/`compactor`/`unified_description` 等 LLM helper module
 - **cross-backend apply contract**：`LineageEntityMerger` description-free 行为加进 `tests/integration/compat/test_lineage_graph_compat.py`（跨 Neo4j/Nebula/PG 三 backend，per § 3.1.4）
 - **audit trail**：accept 调用记录 `GraphCurationSuggestion.reviewer_user_id` + `reviewed_at`；apply 完成写 `applied_at`；apply_failed 保留 retry 次数 cap
 - **idempotent replay**：前一次 accept fail 后 retry 不会重复合并（per task #61 P0 atomicity invariant）
+- **Pydantic Field validator on `MergeSuggestionView.confidence_score`**：锁 `0 <= score <= 1`（per cuiwenbo msg=49beb855 NIT 3 + Lesson #17 backend 收敛 contract pattern + PR #1930 SearchHit.score 同 pattern）
 
 ### 5.3 e2e smoke
 
