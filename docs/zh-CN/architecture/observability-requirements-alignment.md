@@ -169,6 +169,9 @@ per Weston msg=22e6df03 P0 lock + earayu2 4 guardrail:
 - **P2 验收 = SQL/query + admin metrics endpoint extend + Grafana datasource docs** (per Planetegg P1-T3)
 
 跨 layer SQL aggregation 示例 (P0 + P2 LLM ledger 数据齐后):
+
+> ⚠️ **概念示例**（per dongdong msg=5256ebed + ziang msg=e702bfb4 NIT）: 下面 SQL 仅展示**字段消费意图**, **NOT** 最终 schema 实现。`llm_call_event` 是独立 ledger table (per § 3.1 Weston msg=94df61b3 设计), P2 spec lock 时 token/cost/model/provider/latency/call_purpose 等查询热路径字段应作 **typed columns 优先** (强字段列), 仅未来扩展才进 `attrs` JSON。下面 `attrs->>'total_tokens'` / `attrs->>'cost_usd'` 写法是给 graph_extraction event (`telemetry_event` JSON `attrs`) 用的, P2 ledger 实现时直接 `llc.total_tokens` / `llc.cost_usd` 列访问 (避免 JSON 解析 + index 优化 cost/token aggregation 慢查询)。
+
 ```sql
 -- per-doc graph extraction 总耗时 + token cost
 SELECT
@@ -248,6 +251,7 @@ per huangzhangshu msg=171acb55 + Weston msg=94df61b3 + P0 spec § 3.1.5/§5.2 lo
 | @huangzhangshu (testing) | privacy boundary scope + fail-safe 两类 + 验收口径 | PR review LGTM |
 | @dongdong (FE) | dashboard typed schema 三层区分 + raw event 不进 dashboard | PR review LGTM |
 | @cuiwenbo (FE typed schema consumer) | typed schema sync 一致性 + capability declaration mirror | PR review LGTM |
+| @huangheng (cr-checklist sediment cite) | Privacy hard gate framework 跟 PR #1951 § 3.1.5 attrs data-flow gate (Lesson #18 mechanical gate codification first-application demo) 一致 — 防 future onboarding 漂移 (per huangheng msg=48b418c9 NIT 1) | PR review LGTM |
 
 ## 10. 关联文档
 
