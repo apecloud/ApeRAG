@@ -46,7 +46,8 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Sequence
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, List, Sequence
 
 from aperag.vectorstore.dto import (
     QueryRequest,
@@ -185,6 +186,48 @@ def denormalize_threshold_to_native(distance: str, normalized: float) -> float:
     raise ValueError(f"Unknown distance metric: {distance!r}")
 
 
+@dataclass(frozen=True)
+class VectorBackendCapabilities:
+    """Static capability flags for a vector store backend (task #61 P1-V2 / P1-V3 / P1-V4).
+
+    Per task-61 spec v1 § 2.3 「允许差异但显式 declaration」: not every
+    backend supports every operation atomically / identically, so
+    callers (FE / API / MCP / capability-aware optimizers) need a
+    machine-readable declaration of what each adapter is actually
+    capable of, instead of guessing from the backend name.
+
+    These are **static** declarations — they describe what the backend
+    *can* do, independent of any runtime probe / fallback logic. A
+    runtime degradation surface (e.g. "PG connection pool exhausted →
+    graph search degraded to fulltext-only") is a separate concern and
+    intentionally NOT covered here (see architect msg=3163bb4b).
+
+    Each adapter exposes its capabilities via the
+    :attr:`VectorStoreConnector.BACKEND_CAPABILITIES` class-level
+    attribute. Callers (e.g. cuiwenbo task #87 P1-D3 collection
+    metadata Pydantic projection) read this static declaration and
+    surface it on the API.
+    """
+
+    #: P1-V2 — does ``upsert(points)`` apply the entire batch
+    #: atomically? PGVector wraps the INSERT ON CONFLICT in a
+    #: ``engine.begin()`` transaction so a mid-batch failure rolls back
+    #: the whole batch (``True``). Qdrant's ``client.upsert(points,
+    #: wait=True)`` is best-effort per-point — a mid-batch failure can
+    #: leave some points written and others not (``False``). Callers
+    #: that need atomic semantics must chunk + verify on Qdrant; on
+    #: PGVector the semantics come for free.
+    supports_atomic_batch_upsert: bool
+
+    #: P1-V4 — does the backend support a "legacy" non-multitenant
+    #: physical layout (one collection per tenant, no payload-level
+    #: tenant filter)? Qdrant supports both legacy and multitenant
+    #: modes (``True``); PGVector is multitenant-only (``False``).
+    #: Legacy mode is preserved for migration rollback compatibility
+    #: only — new collections always use the multitenant layout.
+    supports_legacy_mode: bool
+
+
 class VectorStoreConnector(ABC):
     """Abstract contract for per-tenant vector storage.
 
@@ -193,6 +236,11 @@ class VectorStoreConnector(ABC):
     list changes. Subclasses pick out the keys they need and ignore the
     rest; unknown keys must never be a hard error.
     """
+
+    #: Static capability flags for this backend (task #61 P1-V2/V3/V4).
+    #: Each concrete subclass overrides with its actual values; see
+    #: :class:`VectorBackendCapabilities` for the per-flag contract.
+    BACKEND_CAPABILITIES: ClassVar[VectorBackendCapabilities]
 
     def __init__(self, ctx: Dict[str, Any], **_kwargs: Any) -> None:
         self.ctx = ctx
@@ -214,9 +262,22 @@ class VectorStoreConnector(ABC):
         """Idempotently make sure the physical storage (Qdrant collection,
         pgvector table, …) exists for this connector's shape.
 
-        Must be safe to call from many connectors concurrently: typical
-        implementations use ``CREATE IF NOT EXISTS`` / ``collection_exists
-        ? no-op : create`` with module-level deduping caches.
+        Cross-adapter contract (task #61 P1-V1):
+
+        * **Idempotent** — repeat calls after first success are a no-op,
+          gated through the per-process ``_ENSURED_*`` cache.
+        * **Race-safe** — concurrent calls from multiple processes /
+          connectors must not all fail when the underlying CREATE
+          collides. PGVector relies on ``CREATE IF NOT EXISTS``; Qdrant
+          treats "already exists" responses on ``create_collection`` as
+          success.
+        * **Fail-loud** — any other failure (missing privilege, bad
+          config, transient DB outage) raises so the caller sees the
+          error rather than silently leaving an unusable connector.
+        * **Cache-not-poisoned-on-failure** — failed runs MUST NOT
+          populate the ``_ENSURED_*`` cache; the next call retries.
+          Otherwise a transient failure during boot would wedge the
+          connector for the rest of the process lifetime.
         """
 
     @abstractmethod
@@ -242,8 +303,22 @@ class VectorStoreConnector(ABC):
 
         Must inject the tenant guard into each point's storage so later
         searches / deletes can filter by it. Returns the ids written (in
-        input order). Raises on write failure — callers treat the batch
-        as atomic per-point.
+        input order). Raises on write failure.
+
+        **Batch atomicity** is **backend-specific** and declared on
+        :attr:`BACKEND_CAPABILITIES.supports_atomic_batch_upsert`
+        (task #61 P1-V2):
+
+        * PGVector wraps the bulk INSERT ON CONFLICT in
+          ``engine.begin()`` so a mid-batch failure rolls back the
+          entire batch (``supports_atomic_batch_upsert=True``).
+        * Qdrant's ``client.upsert(points, wait=True)`` is best-effort
+          per-point — a mid-batch failure can leave a partial write
+          (``supports_atomic_batch_upsert=False``).
+
+        Callers that need atomic-batch semantics must read the
+        capability flag and chunk + verify when ``False``; on
+        ``True``-declaring backends the semantics come for free.
         """
 
     @abstractmethod

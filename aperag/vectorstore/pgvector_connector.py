@@ -73,6 +73,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from aperag.vectorstore.base import (
     UnsupportedFilterError,
+    VectorBackendCapabilities,
     VectorStoreConnector,
     denormalize_threshold_to_native,
     normalize_score,
@@ -254,6 +255,21 @@ class _SqlFilter:
             return "(" + " AND ".join(parts) + ")"
         if isinstance(flt, Or):
             parts = [self._walk(p) for p in flt.parts]
+            # task #61 P1-V3 defense-in-depth: ``Or.__post_init__``
+            # already rejects empty ``parts`` at DSL construction so
+            # this list is normally non-empty. The translator-level
+            # guard catches future refactors that bypass the DSL
+            # constructor (e.g. ``dataclasses.replace(or_node, parts=())``)
+            # before they reach pgvector. An empty Or in SQL would
+            # collapse to ``()`` which is a syntax error — but in
+            # principle could degrade to a vacuous "always true" via
+            # some future translator change. Symmetric with the Qdrant
+            # ``Or`` translator guard for cross-adapter parity.
+            if not parts:
+                raise UnsupportedFilterError(
+                    "pgvector: Or filter has zero translatable parts; "
+                    "an empty Or is a vacuous disjunction (task #61 P1-V3)."
+                )
             return "(" + " OR ".join(parts) + ")"
         if isinstance(flt, Not):
             return f"NOT ({self._walk(flt.inner)})"
@@ -324,6 +340,17 @@ def _vector_literal(vec: Sequence[float]) -> str:
 
 class PgvectorVectorStoreConnector(VectorStoreConnector):
     """pgvector implementation of ``VectorStoreConnector``."""
+
+    #: Static capability declaration (task #61 P1-V2 / P1-V4).
+    #: ``upsert`` wraps the bulk INSERT ON CONFLICT in a SQLAlchemy
+    #: ``engine.begin()`` transaction so a mid-batch failure rolls back
+    #: the whole batch — atomic. Legacy mode is not supported on
+    #: pgvector (would require one table per tenant; defeats the point
+    #: of sharing PG with the main ApeRAG DB).
+    BACKEND_CAPABILITIES = VectorBackendCapabilities(
+        supports_atomic_batch_upsert=True,
+        supports_legacy_mode=False,
+    )
 
     def __init__(self, ctx: Dict[str, Any], **kwargs: Any) -> None:
         super().__init__(ctx, **kwargs)
