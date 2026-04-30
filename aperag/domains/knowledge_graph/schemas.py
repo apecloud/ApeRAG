@@ -224,6 +224,15 @@ class GraphMergeSuggestionEntity(BaseModel):
     )
 
 
+class GraphMergeSuggestionTargetEntity(BaseModel):
+    """
+    Legacy FE-compatible target entity projection.
+    """
+
+    entity_name: str = Field(..., description="Recommended target entity display name", examples=["墨香居"])
+    entity_type: str = Field(..., description="Recommended target entity type", examples=["ORGANIZATION"])
+
+
 class GraphMergeSuggestionItem(BaseModel):
     """
     Persisted merge suggestion produced by graph curation.
@@ -231,6 +240,11 @@ class GraphMergeSuggestionItem(BaseModel):
 
     id: str = Field(..., description="Suggestion ID", examples=["gcs_abcd1234efgh5678"])
     run_id: str = Field(..., description="Run that produced this suggestion", examples=["gcr_abcd1234efgh5678"])
+    suggestion_batch_id: str = Field(
+        ...,
+        description="Backward-compatible alias of run_id for the existing FE review panel",
+        examples=["gcr_abcd1234efgh5678"],
+    )
     collection_id: str = Field(..., description="Collection ID", examples=["col123"])
     status: GraphCurationSuggestionStatusLiteral = Field(
         ..., description="Suggestion lifecycle status", examples=["PENDING"]
@@ -249,6 +263,10 @@ class GraphMergeSuggestionItem(BaseModel):
         description="Recommended surviving entity ID if the suggestion is accepted",
         examples=["e_moxiangju"],
     )
+    suggested_target_entity: GraphMergeSuggestionTargetEntity = Field(
+        ...,
+        description="Backward-compatible target entity projection for the existing FE review panel",
+    )
     confidence_score: confloat(ge=0.0, le=1.0) = Field(
         ...,
         description="Aggregated confidence score for this suggestion",
@@ -257,6 +275,11 @@ class GraphMergeSuggestionItem(BaseModel):
     reason: str = Field(
         ...,
         description="Human-readable explanation from pairwise LLM adjudication",
+        examples=["两个实体都在描述同一家旧书店，名称和上下文高度重合。"],
+    )
+    merge_reason: str = Field(
+        ...,
+        description="Backward-compatible alias of reason for the existing FE review panel",
         examples=["两个实体都在描述同一家旧书店，名称和上下文高度重合。"],
     )
     evidence: Optional[dict[str, Any]] = Field(
@@ -611,6 +634,7 @@ __all__ = [
     "MergeSuggestionsRequest",
     "GraphCurationRunSummary",
     "GraphMergeSuggestionEntity",
+    "GraphMergeSuggestionTargetEntity",
     "GraphMergeSuggestionItem",
     "MergeSuggestionsRunResponse",
     "MergeSuggestionsResponse",

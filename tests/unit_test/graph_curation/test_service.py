@@ -119,7 +119,22 @@ def test_suggestion_to_dict_exposes_evidence_refs_and_new_status():
         collection_id="col1",
         status=GraphCurationSuggestionStatus.APPLY_PENDING,
         entity_ids=["e1", "e2"],
-        entity_snapshots=[],
+        entity_snapshots=[
+            {
+                "entity_id": "e1",
+                "entity_name": "墨香居",
+                "entity_type": "ORGANIZATION",
+                "description": "",
+                "source_chunk_count": 1,
+            },
+            {
+                "entity_id": "e2",
+                "entity_name": "旧书店",
+                "entity_type": "ORGANIZATION",
+                "description": "",
+                "source_chunk_count": 1,
+            },
+        ],
         target_entity_id="e1",
         confidence_score=Decimal("0.910"),
         reason="same entity",
@@ -136,6 +151,12 @@ def test_suggestion_to_dict_exposes_evidence_refs_and_new_status():
     out = GraphCurationService._suggestion_to_dict(suggestion)
 
     assert out["status"] == GraphCurationSuggestionStatus.APPLY_PENDING
+    assert out["suggestion_batch_id"] == "gcr_1"
+    assert out["merge_reason"] == "same entity"
+    assert out["suggested_target_entity"] == {
+        "entity_name": "墨香居",
+        "entity_type": "ORGANIZATION",
+    }
     assert out["confidence_score"] == 0.91
     assert out["evidence_refs"] == [
         {"document_id": "doc1", "chunk_id": "chunk1", "parse_version": "v1"},

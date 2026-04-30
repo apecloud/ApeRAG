@@ -4697,6 +4697,12 @@ export interface components {
              */
             run_id: string;
             /**
+             * Suggestion Batch Id
+             * @description Backward-compatible alias of run_id for the existing FE review panel
+             * @example gcr_abcd1234efgh5678
+             */
+            suggestion_batch_id: string;
+            /**
              * Collection Id
              * @description Collection ID
              * @example col123
@@ -4729,6 +4735,8 @@ export interface components {
              * @example e_moxiangju
              */
             target_entity_id: string;
+            /** @description Backward-compatible target entity projection for the existing FE review panel */
+            suggested_target_entity: components["schemas"]["GraphMergeSuggestionTargetEntity"];
             /**
              * Confidence Score
              * @description Aggregated confidence score for this suggestion
@@ -4741,6 +4749,12 @@ export interface components {
              * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
              */
             reason: string;
+            /**
+             * Merge Reason
+             * @description Backward-compatible alias of reason for the existing FE review panel
+             * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
+             */
+            merge_reason: string;
             /**
              * Evidence
              * @description Structured supporting evidence used to generate the suggestion
@@ -4777,6 +4791,24 @@ export interface components {
              * @example 2026-04-23T00:05:00Z
              */
             operated_at?: string | null;
+        };
+        /**
+         * GraphMergeSuggestionTargetEntity
+         * @description Legacy FE-compatible target entity projection.
+         */
+        GraphMergeSuggestionTargetEntity: {
+            /**
+             * Entity Name
+             * @description Recommended target entity display name
+             * @example 墨香居
+             */
+            entity_name: string;
+            /**
+             * Entity Type
+             * @description Recommended target entity type
+             * @example ORGANIZATION
+             */
+            entity_type: string;
         };
         /**
          * GraphNode
