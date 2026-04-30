@@ -82,7 +82,7 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 
 1. **配置化**（earayu2 msg=f060f1c6 hard requirement）：
    - **配置 schema path lock**（per ziang msg=c0ea4ecc 实施点 1）：`collection.config.knowledge_graph_config.graph_extraction_window_size` / `.graph_extraction_max_window_tokens`（跟 `aperag/schema/common.py:220` `knowledge_graph_config` + `graph_extractor.py:_resolve_kg_config_value()` 现有 schema 对齐，避免配置面漂移；spec 内文用 `kg.*` 简写表示同一路径）
-   - `graph_extraction_window_size`（**初始 default `1` = 旧行为兼容回退**，benchmark 后再 confirm 默认值）
+   - `graph_extraction_window_size`（**B3 lock default `2`** per § 4.2 sweet spot per earayu2 directive msg=adb0c366；保守场景 override `1` 兼容旧行为，强模型 (Gemini 2.5 Flash) 实验 override `5`）
    - `graph_extraction_max_window_tokens`（兜底 cap，超长窗口截断或拆分）
    - **collection-level config**（每个知识库可独立配置，跟 model / 文档类型 align）
    - **`window_overlap` 移到 backlog**（per Weston msg=a29f94ab NIT 2）：第一版仅 non-overlap (overlap=0 hardcoded)，避免重复 provenance / 重复实体 / benchmark 解读复杂度；earayu2 hard requirement 是 `window_size` configurable，不是 overlap configurable，sliding overlap 是 future feature
