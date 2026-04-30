@@ -77,14 +77,28 @@ class UnsupportedFilterError(TypeError):
 # Cross-adapter score normalization (task #61 P0-B)
 # ---------------------------------------------------------------------------
 #
-# Backends return raw similarity / distance numbers in their own units:
+# These helpers operate on the **canonical "higher-is-better raw"
+# convention**, which is what pgvector's ``_score_expr`` already produces
+# directly and what Qdrant's native score is for cosine + dot. Qdrant's
+# euclid distance is the asymmetric case — the SDK returns the *positive*
+# L2 distance (smaller = better), so the Qdrant adapter negates at the
+# boundary before feeding the helper (see ``qdrant_connector.search``).
+# Adapters are responsible for converting their backend's raw score to
+# this canonical convention; ``normalize_score`` does the math only.
 #
-# * cosine   — pgvector ``1 - <=>`` and Qdrant native both yield similarity
-#              already (≈[0, 1] for unit-norm embeddings, [-1, 1] in general).
-# * euclid   — pgvector ``-(<->)`` and Qdrant native both yield "negative L2
-#              distance" so that higher = closer; range is ``(-inf, 0]``.
-# * dot      — pgvector ``-(<#>)`` and Qdrant native both yield raw inner
-#              product, range ``(-inf, +inf)``.
+# Canonical raw conventions assumed below:
+#
+# * cosine   — similarity, ≈[0, 1] for unit-norm embeddings, [-1, 1] in
+#              general. Both adapters already produce similarity
+#              directly: pgvector ``1 - <=>``, Qdrant native ``p.score``.
+# * euclid   — *negative* L2 distance, range ``(-inf, 0]``, so that
+#              higher = closer. pgvector emits this via ``-(<->)``;
+#              Qdrant returns positive L2 natively and the adapter
+#              negates at the boundary.
+# * dot      — raw inner product, range ``(-inf, +inf)``. Both adapters
+#              emit this directly: pgvector via ``-(<#>)`` (since the
+#              ``<#>`` operator returns the negated inner product),
+#              Qdrant via native ``p.score``.
 #
 # To honour the §5 contract above we squash all three onto ``[0, 1]`` with
 # higher = better. The transforms below preserve the ranking (monotone in

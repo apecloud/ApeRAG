@@ -630,6 +630,16 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
         # base.py P0-B contract; invert it to Qdrant's raw-score units so
         # the server-side cutoff matches what a Python post-filter on the
         # normalized score would produce.
+        #
+        # Convention asymmetry caught by Weston (msg=86e05a8e): the shared
+        # ``normalize_score`` / ``denormalize_threshold_to_native`` helpers
+        # assume **higher-is-better raw**, which matches Qdrant's native
+        # convention for cosine + dot but not euclid — Qdrant returns
+        # positive L2 distance (lower = better) and ``score_threshold``
+        # is interpreted as an *upper* bound for euclid. So we negate at
+        # the Qdrant boundary for the euclid case only: the raw score
+        # before normalize, and the native threshold before the RPC.
+        is_euclid = self._shape.canonical == "euclid"
         native_threshold: Optional[float] = None
         if request.score_threshold is not None:
             inv = denormalize_threshold_to_native(self._shape.canonical, float(request.score_threshold))
@@ -640,7 +650,11 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                 # scale. Return empty without an RPC.
                 return []
             if inv != float("-inf"):
-                native_threshold = inv
+                # For euclid, the helper returns "negative L2" but Qdrant
+                # wants "positive L2 upper bound". Flip sign at the
+                # boundary so server-side pruning agrees with the
+                # normalized [0, 1] contract.
+                native_threshold = -inv if is_euclid else inv
 
         resp = self.client.query_points(
             collection_name=self.collection_name,
@@ -656,7 +670,11 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
 
         hits: List[SearchHit] = []
         for p in resp.points:
-            normalized = normalize_score(self._shape.canonical, float(p.score))
+            # See note above: Qdrant returns positive L2 for euclid.
+            raw = float(p.score)
+            if is_euclid:
+                raw = -raw
+            normalized = normalize_score(self._shape.canonical, raw)
             # Belt-and-braces: drop rows where inverse-threshold roundoff
             # let a hit slip through, so the [0, 1] contract holds exactly.
             if request.score_threshold is not None and normalized < float(request.score_threshold):
