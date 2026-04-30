@@ -40,9 +40,14 @@ from __future__ import annotations
 
 import os
 import uuid
+from typing import Any
 
 import pytest
 
+from aperag.graph_curation.lineage_merge import (
+    CURATION_MERGE_DOCUMENT_ID,
+    LineageEntityMerger,
+)
 from aperag.indexing.graph import (
     EntityRecord,
     InMemoryEntityLock,
@@ -239,6 +244,78 @@ def _relation(source: str, target: str, *, relation_type: str = "knows") -> Rela
         description=f"{source} -[{relation_type}]-> {target}",
         source_chunk_ids=("c1",),
     )
+
+
+class _AliasRepoDouble:
+    def __init__(self, *, raise_on_upsert: Exception | None = None) -> None:
+        self.raise_on_upsert = raise_on_upsert
+        self.resolve_calls: list[tuple[str, str]] = []
+        self.upsert_calls: list[dict[str, Any]] = []
+
+    async def resolve_canonical(self, *, collection_id: str, name: str) -> str:
+        self.resolve_calls.append((collection_id, name))
+        return name
+
+    async def upsert_alias(
+        self,
+        *,
+        collection_id: str,
+        alias_name: str,
+        target: str,
+        merged_by: str | None = None,
+    ) -> str:
+        if self.raise_on_upsert is not None:
+            raise self.raise_on_upsert
+        self.upsert_calls.append(
+            {
+                "collection_id": collection_id,
+                "alias_name": alias_name,
+                "target": target,
+                "merged_by": merged_by,
+            }
+        )
+        return target
+
+
+class _ForbiddenDescriptionCollaborator:
+    """Fail fast if the description-free variant touches legacy surfaces."""
+
+    async def compact_if_oversized(self, *_args: Any, **_kwargs: Any) -> str | None:
+        raise AssertionError("description-free apply must not call GraphIndexCompactor")
+
+    def embed_query(self, *_args: Any, **_kwargs: Any) -> list[float]:
+        raise AssertionError("description-free apply must not embed description text")
+
+    def upsert(self, *_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("description-free apply must not upsert vector points")
+
+    def delete(self, *_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("description-free apply must not delete vector points")
+
+
+async def _forbidden_llm(_prompt: str) -> str:
+    raise AssertionError("description-free apply must not call LLM")
+
+
+def _description_free_merger(store, collection_id: str, alias_repo: _AliasRepoDouble | None = None):
+    forbidden = _ForbiddenDescriptionCollaborator()
+    return LineageEntityMerger(
+        store=store,
+        alias_repo=alias_repo or _AliasRepoDouble(),
+        compactor=forbidden,
+        vector_connector=forbidden,
+        embedder=forbidden,
+        llm=_forbidden_llm,
+        collection_id=collection_id,
+    )
+
+
+def _lineage_keys(entity) -> set[tuple[str, str]]:
+    return {(member.document_id, member.parse_version) for member in entity.source_lineage}
+
+
+def _description_texts_by_key(entity) -> dict[tuple[str, str], str]:
+    return {(part.document_id, part.parse_version): part.text for part in entity.description_parts}
 
 
 # --- tests: lineage write + read round-trip -------------------------------
@@ -909,9 +986,11 @@ async def test_bulk_upsert_entity_with_lineage_parts_round_trip(store, collectio
     got = await s.get_entity("Alice")
     assert got is not None
     keys = {(lm.document_id, lm.parse_version) for lm in got.source_lineage}
-    assert keys == {("doc-A", "v1"), ("doc-A", "v2"), ("doc-B", "v1")}, (
-        f"all 3 (document_id, parse_version) members must be visible after bulk; got {keys}"
-    )
+    assert keys == {
+        ("doc-A", "v1"),
+        ("doc-A", "v2"),
+        ("doc-B", "v1"),
+    }, f"all 3 (document_id, parse_version) members must be visible after bulk; got {keys}"
     # Per @huangzhangshu msg=5bbc5d1a — description_parts text must
     # round-trip alongside lineage keys; a backend that wrote the
     # lineage member but dropped the description text would silently
@@ -994,9 +1073,11 @@ async def test_bulk_upsert_entity_with_lineage_parts_appends_distinct_keys(store
     got = await s.get_entity("Alice")
     assert got is not None
     keys = {(lm.document_id, lm.parse_version) for lm in got.source_lineage}
-    assert keys == {("doc-A", "v1"), ("doc-A", "v2"), ("doc-B", "v1")}, (
-        f"bulk with distinct keys MUST NOT wipe pre-existing lineage; got {keys}"
-    )
+    assert keys == {
+        ("doc-A", "v1"),
+        ("doc-A", "v2"),
+        ("doc-B", "v1"),
+    }, f"bulk with distinct keys MUST NOT wipe pre-existing lineage; got {keys}"
 
 
 @pytest.mark.asyncio
@@ -1051,3 +1132,227 @@ async def test_bulk_upsert_entity_with_lineage_parts_replay_is_idempotent(store,
     assert parts_by_key[("doc-A", "v1")] == "v1-replay", (
         f"replay MUST overwrite description (last-wins); got {parts_by_key.get(('doc-A', 'v1'))!r}"
     )
+
+
+# --- task #31 B2 — description-free LineageEntityMerger cross-backend -----
+#
+# task #31 A3 introduced ``LineageEntityMerger.merge_entities_apply_description_free``
+# as the async accept-apply path. This is application-layer logic built from
+# ``LineageGraphStore`` primitives, so the cross-backend contract belongs here
+# (not on a nonexistent ``LineageGraphStore.merge_entities`` method).
+#
+# Contract pinned across PostgreSQL / Neo4j / Nebula:
+#   * source lineage members are re-anchored under the canonical target
+#     without copying stale source description text;
+#   * sources are deleted from L1, but the vector layer is untouched;
+#   * no ``__curation_merge__`` sentinel lineage is written;
+#   * replay after the sources are already consumed is idempotent;
+#   * failures before graph-store writes leave entity rows unchanged.
+
+
+@pytest.mark.asyncio
+async def test_lineage_entity_merger_description_free_apply_reanchors_lineage_cross_backend(store, collection_id):
+    """Description-free accept-apply preserves source lineage without
+    leaking source descriptions or writing the legacy curation sentinel.
+
+    This is the cross-backend test requested by task #31 § 3.1.4 /
+    § 5.2.b and Bryce's P1 gap: it exercises
+    ``LineageEntityMerger`` behaviour over the real backend stores,
+    while replacing LLM / Compactor / vector collaborators with
+    fail-fast doubles so any description-bearing legacy call regresses
+    loudly.
+    """
+
+    _, s = store
+    alias_repo = _AliasRepoDouble()
+    merger = _description_free_merger(s, collection_id, alias_repo)
+
+    target_lineage = LineageMember(
+        document_id="target-doc",
+        parse_version="v1",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("target-c1",),
+    )
+    source_a_v1 = LineageMember(
+        document_id="source-doc-a",
+        parse_version="v1",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("source-a-c1",),
+    )
+    source_a_v2 = LineageMember(
+        document_id="source-doc-a",
+        parse_version="v2",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("source-a-c2",),
+    )
+    source_b_v1 = LineageMember(
+        document_id="source-doc-b",
+        parse_version="v1",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("source-b-c1", "source-b-c2"),
+    )
+
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Apple Inc.",
+            entity_type="organization",
+            description="",
+            source_chunk_ids=("target-c1",),
+        ),
+        lineage=target_lineage,
+        compacted_description="legacy-target-summary",
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Apple",
+            entity_type="organization",
+            description="SHOULD_NOT_LEAK_source_a_v1",
+            source_chunk_ids=("source-a-c1",),
+        ),
+        lineage=source_a_v1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Apple",
+            entity_type="organization",
+            description="SHOULD_NOT_LEAK_source_a_v2",
+            source_chunk_ids=("source-a-c2",),
+        ),
+        lineage=source_a_v2,
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="AAPL",
+            entity_type="organization",
+            description="SHOULD_NOT_LEAK_source_b_v1",
+            source_chunk_ids=("source-b-c1", "source-b-c2"),
+        ),
+        lineage=source_b_v1,
+    )
+
+    result = await merger.merge_entities_apply_description_free(
+        target_name="Apple Inc.",
+        source_names=["Apple", "AAPL"],
+        merged_by="reviewer-1",
+    )
+
+    assert result.final_target == "Apple Inc."
+    assert result.merged_source_ids == ["Apple", "AAPL"]
+    assert result.unified_description == ""
+    assert result.compacted_description is None
+    assert alias_repo.upsert_calls == [
+        {
+            "collection_id": collection_id,
+            "alias_name": "Apple",
+            "target": "Apple Inc.",
+            "merged_by": "reviewer-1",
+        },
+        {
+            "collection_id": collection_id,
+            "alias_name": "AAPL",
+            "target": "Apple Inc.",
+            "merged_by": "reviewer-1",
+        },
+    ]
+
+    target_after = await s.get_entity("Apple Inc.")
+    assert target_after is not None
+    assert await s.get_entity("Apple") is None
+    assert await s.get_entity("AAPL") is None
+
+    expected_keys = {
+        ("target-doc", "v1"),
+        ("source-doc-a", "v1"),
+        ("source-doc-a", "v2"),
+        ("source-doc-b", "v1"),
+    }
+    assert _lineage_keys(target_after) == expected_keys
+    assert all(member.document_id != CURATION_MERGE_DOCUMENT_ID for member in target_after.source_lineage), (
+        "description-free apply must not write the legacy __curation_merge__ sentinel lineage"
+    )
+
+    descriptions = _description_texts_by_key(target_after)
+    assert descriptions[("source-doc-a", "v1")] == ""
+    assert descriptions[("source-doc-a", "v2")] == ""
+    assert descriptions[("source-doc-b", "v1")] == ""
+    assert not any("SHOULD_NOT_LEAK" in text for text in descriptions.values())
+
+    # Replay after the queue redelivers the same accept-apply payload:
+    # source rows are already gone, so the method should not duplicate
+    # target lineage or resurrect descriptions.
+    await merger.merge_entities_apply_description_free(
+        target_name="Apple Inc.",
+        source_names=["Apple", "AAPL"],
+        merged_by="reviewer-1",
+    )
+    replayed = await s.get_entity("Apple Inc.")
+    assert replayed is not None
+    assert _lineage_keys(replayed) == expected_keys
+    replayed_descriptions = _description_texts_by_key(replayed)
+    assert replayed_descriptions[("source-doc-a", "v1")] == ""
+    assert replayed_descriptions[("source-doc-a", "v2")] == ""
+    assert replayed_descriptions[("source-doc-b", "v1")] == ""
+
+
+@pytest.mark.asyncio
+async def test_lineage_entity_merger_description_free_apply_alias_failure_has_no_graph_side_effect(
+    store,
+    collection_id,
+):
+    """If alias validation fails before graph-store writes, backend
+    entity rows must remain unchanged.
+
+    This pins the zero-side-effect-on-raise edge of the application
+    contract without requiring alias-map DB setup in every graph
+    backend. The real alias repository owns its own transaction; this
+    test proves the merger does not touch the backend store after an
+    alias-layer exception.
+    """
+
+    _, s = store
+    alias_repo = _AliasRepoDouble(raise_on_upsert=RuntimeError("alias cycle"))
+    merger = _description_free_merger(s, collection_id, alias_repo)
+
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Canonical",
+            entity_type="organization",
+            description="",
+            source_chunk_ids=("target-c1",),
+        ),
+        lineage=LineageMember(
+            document_id="target-doc",
+            parse_version="v1",
+            tenant_scope_key="tenant-X",
+            chunk_ids=("target-c1",),
+        ),
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Alias",
+            entity_type="organization",
+            description="SHOULD_STILL_EXIST",
+            source_chunk_ids=("source-c1",),
+        ),
+        lineage=LineageMember(
+            document_id="source-doc",
+            parse_version="v1",
+            tenant_scope_key="tenant-X",
+            chunk_ids=("source-c1",),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="alias cycle"):
+        await merger.merge_entities_apply_description_free(
+            target_name="Canonical",
+            source_names=["Alias"],
+            merged_by="reviewer-1",
+        )
+
+    target_after = await s.get_entity("Canonical")
+    source_after = await s.get_entity("Alias")
+    assert target_after is not None
+    assert source_after is not None
+    assert _lineage_keys(target_after) == {("target-doc", "v1")}
+    assert _lineage_keys(source_after) == {("source-doc", "v1")}
+    assert _description_texts_by_key(source_after)[("source-doc", "v1")] == "SHOULD_STILL_EXIST"
