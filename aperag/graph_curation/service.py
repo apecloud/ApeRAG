@@ -201,6 +201,7 @@ class GraphCurationService(AsyncBaseRepository):
             )
             return {
                 "status": "success",
+                "message": f"Suggestion {suggestion_id} has been rejected",
                 "suggestion_id": suggestion_id,
                 "action": "reject",
                 "suggestion_status": GraphCurationSuggestionStatus.REJECTED.value,
@@ -216,6 +217,7 @@ class GraphCurationService(AsyncBaseRepository):
             )
             return {
                 "status": "success",
+                "message": f"Suggestion {suggestion_id} has been dismissed",
                 "suggestion_id": suggestion_id,
                 "action": "dismiss",
                 "suggestion_status": GraphCurationSuggestionStatus.DISMISSED.value,
@@ -267,6 +269,7 @@ class GraphCurationService(AsyncBaseRepository):
 
         return {
             "status": "success",
+            "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
             "suggestion_id": suggestion_id,
             "action": "accept",
             "suggestion_status": GraphCurationSuggestionStatus.ACCEPTED.value,
