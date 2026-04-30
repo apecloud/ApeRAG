@@ -55,6 +55,13 @@ DEFAULT_MAX_PAIRS_PER_ENTITY = 6
 DEFAULT_MAX_CANDIDATE_PAIRS = 240
 DEFAULT_MAX_SUGGESTIONS = 32
 DEFAULT_VECTOR_TOP_K = 4
+# Threshold is on the normalized [0, 1] similarity scale per task #61
+# P0-B (``aperag.vectorstore.base.normalize_score``). 0.72 was tuned on
+# cosine-distance embeddings, where 0.72 ≈ "strongly similar". The
+# normalize layer makes this number directly comparable across adapters
+# but the *intent* is still cosine-grade strictness; collections that
+# choose ``euclid`` or ``dot`` distance may want to override this default
+# (see follow-up: metric-aware defaults, Lesson #12 v7.3).
 DEFAULT_VECTOR_SCORE_THRESHOLD = 0.72
 DEFAULT_LLM_CONCURRENCY = 4
 

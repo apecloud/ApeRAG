@@ -45,12 +45,19 @@ def test_normalize_passes_through_raw_qdrant_filter():
     assert qc._normalize_filter_input(raw) is raw
 
 
-def test_normalize_unknown_type_returns_none_with_warning(caplog):
+def test_normalize_unknown_type_raises_unsupported_filter_error():
     """Any value that is neither DSL nor Qdrant Filter must be refused
-    gracefully — never silently translated into something nonsensical."""
-    with caplog.at_level("WARNING"):
-        assert qc._normalize_filter_input({"garbage": True}) is None
-    assert any("unsupported type" in r.message for r in caplog.records)
+    fail-loud — never silently dropped (which would degrade into an
+    unfiltered full-collection scan, a correctness bug, not a graceful
+    degradation). Pinned by task #61 P0-A."""
+    from aperag.vectorstore.base import UnsupportedFilterError
+
+    with pytest.raises(UnsupportedFilterError, match="unsupported filter input"):
+        qc._normalize_filter_input({"garbage": True})
+
+    # Backwards-compat: callers that ``except TypeError`` keep working.
+    with pytest.raises(TypeError):
+        qc._normalize_filter_input(object())
 
 
 # ---------------------------------------------------------------------------

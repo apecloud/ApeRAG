@@ -207,3 +207,112 @@ def test_retrieve_by_ids(connector):
     ids = {r.id for r in results}
     assert _point_id("ret1") in ids, f"[{name}] ret1 not retrieved"
     assert _point_id("ret2") in ids, f"[{name}] ret2 not retrieved"
+
+
+# ---------------------------------------------------------------------------
+# task #61 P0-A: filter fail-loud (cross-backend invariant)
+# ---------------------------------------------------------------------------
+
+
+def test_search_unsupported_filter_raises_unsupported_filter_error(connector):
+    """Both backends must raise the cross-adapter ``UnsupportedFilterError``
+    when the caller hands a filter shape neither translator understands.
+    Silent fall-through to an unfiltered query is a correctness footgun
+    (task #61 P0-A)."""
+    name, conn = connector
+    from aperag.vectorstore.base import UnsupportedFilterError
+    from aperag.vectorstore.dto import QueryRequest
+
+    class _BogusNode:
+        pass
+
+    with pytest.raises(UnsupportedFilterError):
+        conn.search(
+            QueryRequest(
+                embedding=[0.1] * VECTOR_SIZE,
+                top_k=5,
+                flt=_BogusNode(),  # type: ignore[arg-type]
+                score_threshold=0.0,
+            )
+        )
+
+    # Subclass of TypeError, so existing ``except TypeError`` callers
+    # keep working.
+    with pytest.raises(TypeError):
+        conn.search(
+            QueryRequest(
+                embedding=[0.1] * VECTOR_SIZE,
+                top_k=5,
+                flt=_BogusNode(),  # type: ignore[arg-type]
+                score_threshold=0.0,
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# task #61 P0-B: score normalization (cross-backend invariant on cosine)
+# ---------------------------------------------------------------------------
+
+
+def test_search_score_in_unit_interval(connector):
+    """Per the §5 normalized-score contract, every ``SearchHit.score`` must
+    lie in ``[0, 1]`` regardless of the underlying distance metric. The
+    SearchHit DTO validator already enforces this, but we keep the
+    assertion here so a regression that bypassed the DTO (e.g. a future
+    direct-build code path) would surface in compat-test rather than
+    quietly drifting."""
+    name, conn = connector
+    from aperag.vectorstore.dto import QueryRequest
+
+    points = [
+        _point("sc1", 0.1, indexer="vector"),
+        _point("sc2", 0.9, indexer="vector"),
+    ]
+    conn.upsert(points)
+
+    hits = conn.search(QueryRequest(embedding=[0.1] * VECTOR_SIZE, top_k=5, score_threshold=0.0))
+    assert hits, f"[{name}] expected non-empty hits"
+    for h in hits:
+        assert 0.0 <= h.score <= 1.0, f"[{name}] score {h.score} outside [0, 1]"
+
+
+def test_search_score_threshold_filters_low_scores(connector):
+    """``score_threshold`` is on the same normalized [0, 1] scale; raising
+    it must monotonically reduce or preserve the result count, never
+    expand it. Pinned cross-backend so PGVector / Qdrant agree on the
+    direction of the threshold."""
+    name, conn = connector
+    from aperag.vectorstore.dto import QueryRequest
+
+    points = [
+        _point("th_close", 0.10, indexer="vector"),
+        _point("th_far", 0.90, indexer="vector"),
+    ]
+    conn.upsert(points)
+
+    lo = conn.search(QueryRequest(embedding=[0.10] * VECTOR_SIZE, top_k=10, score_threshold=0.0))
+    hi = conn.search(QueryRequest(embedding=[0.10] * VECTOR_SIZE, top_k=10, score_threshold=0.99))
+    # Higher threshold must shrink (or preserve) the result set.
+    assert len(hi) <= len(lo), f"[{name}] threshold direction inverted"
+    # Every survivor of the high-threshold filter must clear the cutoff.
+    for h in hi:
+        assert h.score >= 0.99, f"[{name}] threshold not enforced (score={h.score})"
+
+
+def test_search_top_k_ranking_higher_is_better(connector):
+    """Ranking is monotone in normalized score: the top hit is the most
+    similar, scores decrease (or stay equal) with rank. Cross-backend
+    pinned because score-direction confusion was the root cause of
+    cuiwenbo's FE display regression (task #70)."""
+    name, conn = connector
+    from aperag.vectorstore.dto import QueryRequest
+
+    points = [_point(f"r{i}", 0.1 * i, indexer="vector") for i in range(1, 6)]
+    conn.upsert(points)
+
+    hits = conn.search(QueryRequest(embedding=[0.10] * VECTOR_SIZE, top_k=5, score_threshold=0.0))
+    assert len(hits) >= 2, f"[{name}] need at least 2 hits to assert ordering"
+    scores = [h.score for h in hits]
+    assert scores == sorted(scores, reverse=True), (
+        f"[{name}] top-k ordering must be descending in normalized score, got {scores}"
+    )

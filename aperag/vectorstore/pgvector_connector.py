@@ -71,7 +71,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from aperag.vectorstore.base import VectorStoreConnector
+from aperag.vectorstore.base import (
+    UnsupportedFilterError,
+    VectorStoreConnector,
+    denormalize_threshold_to_native,
+    normalize_score,
+)
 from aperag.vectorstore.dto import (
     QueryRequest,
     SearchHit,
@@ -252,7 +257,7 @@ class _SqlFilter:
             return "(" + " OR ".join(parts) + ")"
         if isinstance(flt, Not):
             return f"NOT ({self._walk(flt.inner)})"
-        raise TypeError(
+        raise UnsupportedFilterError(
             f"Unsupported VectorFilter node: {type(flt).__name__}. "
             "Add a branch in aperag.vectorstore.pgvector_connector._SqlFilter._walk"
         )
@@ -542,9 +547,18 @@ class PgvectorVectorStoreConnector(VectorStoreConnector):
             params.update(flt_params)
 
         score_expr = self._score_expr
+        # ``request.score_threshold`` is on the normalized [0, 1] scale per
+        # base.py P0-B contract. Push it down by inverting back to the
+        # raw-score range so pgvector can prune via WHERE before LIMIT,
+        # then re-apply the equivalent cutoff after normalization to
+        # absorb any inverse-roundoff. Caller-visible behaviour is
+        # identical to a Python post-filter.
         if request.score_threshold is not None:
-            where_parts.append(f"({score_expr}) >= :score_threshold")
-            params["score_threshold"] = float(request.score_threshold)
+            native_threshold = denormalize_threshold_to_native(self._shape.canonical, float(request.score_threshold))
+            # ``-inf`` means "all rows pass", skip the SQL filter entirely.
+            if native_threshold != float("-inf"):
+                where_parts.append(f"({score_expr}) >= :score_threshold")
+                params["score_threshold"] = native_threshold
 
         select_vector = "embedding" if request.with_vectors else "NULL AS embedding"
         sql = (
@@ -572,10 +586,16 @@ class PgvectorVectorStoreConnector(VectorStoreConnector):
                 vec = None
                 if request.with_vectors and row.embedding is not None:
                     vec = _parse_vector(row.embedding)
+                normalized = normalize_score(self._shape.canonical, float(row.score))
+                # Belt-and-braces: if the inverse-threshold roundoff lets a
+                # row through, drop it on the Python side so the contract
+                # holds exactly.
+                if request.score_threshold is not None and normalized < float(request.score_threshold):
+                    continue
                 hits.append(
                     SearchHit(
                         id=str(row.id),
-                        score=float(row.score),
+                        score=normalized,
                         payload=_ensure_dict(row.payload),
                         vector=vec,
                     )

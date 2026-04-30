@@ -72,6 +72,11 @@ AUTO_DETECT_REASON: str = "auto_detected"
 # detection share the same scoring frontier — divergence here would let
 # one path silently surface candidates the other rejects.
 DEFAULT_VECTOR_TOP_K: int = 4
+# Threshold is on the normalized [0, 1] similarity scale per task #61
+# P0-B (``aperag.vectorstore.base.normalize_score``). 0.72 was tuned on
+# cosine-distance embeddings; non-cosine collections may want to
+# override (see ``aperag.graph_curation.service.DEFAULT_VECTOR_SCORE_THRESHOLD``
+# for the matching tunable on the user-triggered path).
 DEFAULT_VECTOR_SCORE_THRESHOLD: float = 0.72
 DEFAULT_MAX_PAIRS_PER_ENTITY: int = 6
 DEFAULT_MAX_TOTAL_PAIRS: int = 240

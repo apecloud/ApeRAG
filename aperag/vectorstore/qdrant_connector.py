@@ -49,7 +49,12 @@ import qdrant_client
 from qdrant_client import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 
-from aperag.vectorstore.base import VectorStoreConnector
+from aperag.vectorstore.base import (
+    UnsupportedFilterError,
+    VectorStoreConnector,
+    denormalize_threshold_to_native,
+    normalize_score,
+)
 from aperag.vectorstore.dto import (
     QueryRequest,
     SearchHit,
@@ -284,6 +289,12 @@ def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
     script (``scripts/migrate_qdrant_multitenancy.py``) which hand-rolls
     native filters. Once the script stops doing that this branch can go.
     Normal production callers go through the DSL path.
+
+    Per task #61 P0-A contract: an unsupported shape raises
+    :class:`UnsupportedFilterError` synchronously rather than being
+    silently dropped. Returning ``None`` here would degrade the search
+    into an unfiltered full-collection scan — a correctness footgun, not
+    a graceful degradation.
     """
     if flt is None:
         return None
@@ -291,11 +302,11 @@ def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
         return flt
     if isinstance(flt, (Eq, In, IsEmpty, And, Or, Not)):
         return _translate_filter(flt)
-    logger.warning(
-        "qdrant: ignoring filter of unsupported type %s (expected VectorFilter DSL)",
-        type(flt).__name__,
+    raise UnsupportedFilterError(
+        f"qdrant: unsupported filter input of type {type(flt).__name__}; "
+        "expected one of VectorFilter DSL nodes (Eq/In/IsEmpty/And/Or/Not), "
+        "an already-translated qdrant_client.models.Filter, or None."
     )
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -615,6 +626,36 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             )
         consistency = hints.get("consistency", "majority")
 
+        # ``request.score_threshold`` is on the normalized [0, 1] scale per
+        # base.py P0-B contract; invert it to Qdrant's raw-score units so
+        # the server-side cutoff matches what a Python post-filter on the
+        # normalized score would produce.
+        #
+        # Convention asymmetry caught by Weston (msg=86e05a8e): the shared
+        # ``normalize_score`` / ``denormalize_threshold_to_native`` helpers
+        # assume **higher-is-better raw**, which matches Qdrant's native
+        # convention for cosine + dot but not euclid — Qdrant returns
+        # positive L2 distance (lower = better) and ``score_threshold``
+        # is interpreted as an *upper* bound for euclid. So we negate at
+        # the Qdrant boundary for the euclid case only: the raw score
+        # before normalize, and the native threshold before the RPC.
+        is_euclid = self._shape.canonical == "euclid"
+        native_threshold: Optional[float] = None
+        if request.score_threshold is not None:
+            inv = denormalize_threshold_to_native(self._shape.canonical, float(request.score_threshold))
+            # Qdrant rejects ``inf``; ``-inf`` means "all rows pass" so
+            # we just omit the param.
+            if inv == float("inf"):
+                # Threshold of 1.0 on dot/euclid → unreachable in raw
+                # scale. Return empty without an RPC.
+                return []
+            if inv != float("-inf"):
+                # For euclid, the helper returns "negative L2" but Qdrant
+                # wants "positive L2 upper bound". Flip sign at the
+                # boundary so server-side pruning agrees with the
+                # normalized [0, 1] contract.
+                native_threshold = -inv if is_euclid else inv
+
         resp = self.client.query_points(
             collection_name=self.collection_name,
             query=list(request.embedding),
@@ -623,16 +664,25 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             limit=request.top_k,
             consistency=consistency,
             search_params=search_params,
-            score_threshold=request.score_threshold,
+            score_threshold=native_threshold,
             query_filter=filter_obj,
         )
 
         hits: List[SearchHit] = []
         for p in resp.points:
+            # See note above: Qdrant returns positive L2 for euclid.
+            raw = float(p.score)
+            if is_euclid:
+                raw = -raw
+            normalized = normalize_score(self._shape.canonical, raw)
+            # Belt-and-braces: drop rows where inverse-threshold roundoff
+            # let a hit slip through, so the [0, 1] contract holds exactly.
+            if request.score_threshold is not None and normalized < float(request.score_threshold):
+                continue
             hits.append(
                 SearchHit(
                     id=_coerce_point_id(p.id),
-                    score=float(p.score),
+                    score=normalized,
                     payload=dict(p.payload or {}),
                     vector=_extract_vector(p) if request.with_vectors else None,
                 )
