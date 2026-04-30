@@ -43,7 +43,7 @@ description: 企业版主仓 + 开源版子集 + 双向同步链路 - 完整详�
 apecloud/aperag-enterprise (新建, 私有, 团队日常开发主战场)
   ↑
   日常 push, 主分支永远 = 开源全部 + 企业功能
-  
+
 apecloud/ApeRAG (维持现有, 公开, 社区入口)
   ↑
   保留完整历史 + 社区 PR + issue + fork
@@ -119,7 +119,7 @@ CI 跑两套 build:
 | `enterprise-only` | 企业独占 | 只动企业目录 (`enterprise/` `web-enterprise/` `deploy/enterprise/` etc.) | 不流到开源仓 |
 | `mixed` | 混合 | 同时动开源和企业 | CI 拒绝, 必须拆成两个 PR (一个 oss-safe + 一个 enterprise-only) |
 
-**为什么强制拆 mixed**: 
+**为什么强制拆 mixed**:
 
 如果允许同一个 PR 既改开源又改企业, 后期回流到开源时只能拿这个 PR 的部分内容, 拆 commit 很难做干净。如果开发时就拆开, 流程自然 — 哪些进开源哪些不进, 一眼看清楚。
 
