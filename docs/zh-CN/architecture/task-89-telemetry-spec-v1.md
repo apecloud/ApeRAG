@@ -67,7 +67,7 @@ class TelemetryEvent(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     event_type = Column(String(64), nullable=False)  # e.g. 'graph_extraction.window'
     ts = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    collection_id = Column(String(24), nullable=False)
+    collection_id = Column(String(24), nullable=True)  # per Weston msg=a95b2546 NIT: nullable to accommodate P1 worker lane event 没 collection scope (e.g. global queue depth) — P0 graph extraction event 强制 set, P1 worker lane event 可空
     document_id = Column(String(24), nullable=True)  # window/document event 必填; future P1 worker lane event 可空
     document_index_id = Column(String(32), nullable=True)  # per ziang msg=785625f5: 串联同 doc 多次 retry
     parse_version = Column(String(32), nullable=True)
@@ -97,6 +97,7 @@ class WindowExtractionAttrs(BaseModel):
     model_id: Optional[str]  # e.g. 'gpt-4o-mini' / 'qwen2.5-72b'
     provider: Optional[str]  # e.g. 'openai' / 'qwen'
     timeout_seconds: Optional[int]
+    chunks_truncated: bool = False  # set True when len(input chunk_ids) > 128 (per Weston msg=a95b2546 BLOCKER 2)
     # 注: NOT 含 prompt_text / completion_text / chunk_text / entity_description / error_message — privacy gate
 
 class DocumentExtractionAttrs(BaseModel):
@@ -112,13 +113,18 @@ class DocumentExtractionAttrs(BaseModel):
     # 注: NOT 含 error_message_list / failed_window_details (privacy gate)
 ```
 
-**Privacy invariant (Layer 4 boundary AST gate enforce)**: `attrs` JSON dict 不含:
-- `chunk_text` / `chunk_content` / `chunk.text` / `chunk.content`
-- `query_text` / `user_query`
-- `entity_description` / `description_text`
-- `prompt_text` / `completion_text` / `llm_response`
-- `error_message` / `traceback` / `repr(exc)` (per huangzhangshu msg=171acb55)
-- 仅允许: ID list / count / duration / status enum / error_type whitelist enum / model_id / provider
+**Privacy invariant (Layer 4 boundary AST gate enforce, per Weston msg=a95b2546 BLOCKER 1 修订 — 数据流 NOT 全文 grep)**: gate 必须钉「forbidden field 不能 flow INTO `TelemetryEvent.attrs` / `WindowExtractionAttrs` / `DocumentExtractionAttrs` / `telemetry_emit(attrs=...)` 参数」，**不是** indexing 全文 zero match (`aperag/indexing/fulltext.py` / `vision.py` / `summary.py` / `parser.py` + graph_extractor 本身必须读 chunk text 抽取实体, 全文 zero match 会误伤合法路径)。
+
+`attrs` payload **不含** (data-flow constraint):
+- `chunk_text` / `chunk_content` / `chunk.text` / `chunk.content` — 仅允许 `chunk_ids` (ID list)
+- `query_text` / `user_query` — 不允许进 attrs
+- `entity_description` / `description_text` — 仅允许 `entity_count` (count)
+- `prompt_text` / `completion_text` / `llm_response` — 仅允许 `llm_token_count` / `model_id` / `provider`
+- `error_message` / `traceback` / `repr(exc)` (per huangzhangshu msg=171acb55) — 仅允许 `error_type: str` whitelist enum
+
+仅允许: ID list / count / duration / status enum / error_type whitelist enum / model_id / provider / Pydantic Field-typed primitives
+
+**Boundary AST gate 实施**: 扫描范围 = `aperag/telemetry/**` (全文, telemetry module 自身) + producer call sites (`aperag/indexing/graph_extractor.py::_extract_one_window` 函数 body + `aperag/indexing/worker_factory.py::_build_graph_facts_worker` + `GraphModalityWorker.sync` 函数 body)，**仅 scan 进入 `telemetry_emit(attrs=...)` / `WindowExtractionAttrs(...)` / `DocumentExtractionAttrs(...)` 调用 keyword 参数 + `attrs.update(...)` / `attrs[k]=v`赋值** 的 expression — AST data-flow analysis 钉 forbidden read attribute access (e.g. `chunk.text`, `entity.description`) 不在这些 expression boundary 内。allowlist = Pydantic Field-typed schema (typed payload only, no untyped dict.update)。
 
 **chunk_ids cardinality cap (per Weston msg=22e6df03 BLOCKER 1)**: `chunk_ids` list `max_length=128` (Pydantic validator), 超过截断 + 加 `chunks_truncated: bool` flag — 防 window 含百级 chunk 时 attrs payload 无界膨胀。
 
@@ -169,8 +175,11 @@ async def _extract_one_window(self, chunk_ids, ...) -> tuple[WindowExtractResult
             status='failed' if not isinstance(exc, LLMTimeoutError) else 'timeout',
             error_type=classify_error(exc),  # whitelist classifier
         )
-        # re-raise 让现有 retry/halt logic 处理
-        raise
+        # per huangzhangshu msg=a563d88d implementation detail:
+        # 用 structured exception 把 WindowExtractionStats 带给 caller,
+        # 保 caller 的 outer finally 能可靠累加 windows_failed/windows_timeout
+        # + entity_count/relation_count (即使失败也可能有 partial entities)
+        raise WindowExtractionFailed(stats=stats) from exc
     finally:
         # emit telemetry (best-effort, fail-safe per § 3.1.3 Layer 2)
         try:
@@ -186,6 +195,7 @@ async def _extract_one_window(self, chunk_ids, ...) -> tuple[WindowExtractResult
                 attrs=WindowExtractionAttrs(
                     chunk_ids=chunk_ids[:128],  # cardinality cap
                     chunk_count=len(chunk_ids),
+                    chunks_truncated=len(chunk_ids) > 128,  # per Weston msg=a95b2546 BLOCKER 2
                     entity_count=stats.entity_count,
                     relation_count=stats.relation_count,
                     llm_call_count=stats.llm_call_count,
@@ -200,37 +210,61 @@ async def _extract_one_window(self, chunk_ids, ...) -> tuple[WindowExtractResult
     return result, stats
 ```
 
-**Document event** (`aperag/indexing/worker_factory._build_graph_facts_worker` 外层 / `GraphModalityWorker.sync` 末尾, per ziang msg=785625f5 接入点修正 — 不存在独立 graph_facts_worker.py 文件):
+**Document event** (`aperag/indexing/worker_factory._build_graph_facts_worker` 外层 / `GraphModalityWorker.sync` outer try/finally, per ziang msg=785625f5 接入点修正 — 不存在独立 graph_facts_worker.py 文件 + per Weston msg=a95b2546 BLOCKER 3 outer try/finally guarantee emit exactly once 不论 success/failed/timeout):
+
 ```python
 class GraphModalityWorker:
     async def sync(self, ...):
-        # 在 run 内累加 counters (per Weston BLOCKER 2: 不实时 aggregate from telemetry events)
+        # 在 run 内累加 counters (per Weston msg=22e6df03 BLOCKER 2: 不实时 aggregate from telemetry events)
         doc_stats = DocumentExtractionRunCounters(
             chunks_total=0, windows_total=0,
             windows_success=0, windows_failed=0, windows_timeout=0,
             entities_total=0, relations_total=0,
             wall_time_start_ms=int(time.monotonic() * 1000),
         )
-        # ... existing extraction loop, 每 window 累加 doc_stats counters from WindowExtractionStats
-        for window_chunks in ...:
-            try:
-                _, win_stats = await graph_extractor._extract_one_window(window_chunks, ...)
-                doc_stats.windows_total += 1
-                if win_stats.status == 'success':
-                    doc_stats.windows_success += 1
-                elif win_stats.status == 'timeout':
-                    doc_stats.windows_timeout += 1
-                else:
-                    doc_stats.windows_failed += 1
-                doc_stats.entities_total += win_stats.entity_count
-                doc_stats.relations_total += win_stats.relation_count
-            except Exception:
-                doc_stats.windows_total += 1
-                doc_stats.windows_failed += 1
-                # re-raise per existing logic
+        doc_status: Literal['success', 'failed'] = 'success'
 
-        # emit document summary at end of sync (best-effort, fail-safe)
+        # OUTER try/finally guarantees document summary emit exactly once
+        # regardless of success / window failure re-raise / timeout / crash
+        # (per Weston msg=a95b2546 BLOCKER 3 — sample 把 emit 放 end of sync
+        # 在 first window failure re-raise 时永远到不了, 必须 outer try/finally
+        # cover, telemetry failure 仍不污染 indexing task state per § 3.1.3 Class 2 fail-safe)
         try:
+            # ... existing extraction loop, 每 window 累加 doc_stats counters from WindowExtractionStats
+            for window_chunks in ...:
+                try:
+                    _, win_stats = await graph_extractor._extract_one_window(window_chunks, ...)
+                    doc_stats.windows_total += 1
+                    if win_stats.status == 'success':
+                        doc_stats.windows_success += 1
+                    elif win_stats.status == 'timeout':
+                        doc_stats.windows_timeout += 1
+                    else:
+                        doc_stats.windows_failed += 1
+                    doc_stats.entities_total += win_stats.entity_count
+                    doc_stats.relations_total += win_stats.relation_count
+                except WindowExtractionFailed as exc:
+                    # per huangzhangshu msg=a563d88d: structured exception
+                    # carries WindowExtractionStats — caller 累加 actual stats
+                    # 不依赖窗口外推 (failed window 的 duration_ms / partial entity_count
+                    # 仍 captured + summary windows_failed/timeout 准确)
+                    doc_stats.windows_total += 1
+                    if exc.stats.status == 'timeout':
+                        doc_stats.windows_timeout += 1
+                    else:
+                        doc_stats.windows_failed += 1
+                    doc_stats.entities_total += exc.stats.entity_count
+                    doc_stats.relations_total += exc.stats.relation_count
+                    doc_status = 'failed'
+                    # re-raise per existing logic — outer try/finally 仍 emit summary
+                    raise exc.__cause__ if exc.__cause__ else exc
+        except Exception:
+            doc_status = 'failed'
+            raise  # re-raise to preserve existing indexing worker task semantics
+        finally:
+            # emit document summary best-effort, ALWAYS once regardless of
+            # success / partial failure / outer raise (per Weston BLOCKER 3)
+            try:
             telemetry_emit(
                 event_type='graph_extraction.document',
                 collection_id=self.collection_id,
