@@ -87,13 +87,31 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
 
 ### 3.1 必须做（Hard scope per Weston msg=d0e00405 4 边界 + earayu2 directive）
 
-#### 3.1.1 后台 worker lane 加入 task #17 hard cut deployment
+#### 3.1.1 后台 worker lane 加入 task #17 hard cut deployment（per ziang msg=92321bcc + Bryce msg=4c23f87e BLOCKER 1 reframe — **独立 queue family 不污染 Modality/DocumentIndex**）
 
-新增 worker lane:
-- `graph_node_merge_suggestion`（11th lane，加进 `aperag/cli/indexing_worker.py` startup）
-- 跑独立队列 `redis_queue.graph_node_merge_suggestion`（reuse RedisWorkQueue + RedisQuotaBackend infrastructure per task #17）
-- API 进程 **不直接调用 dedup scan**（per `task-system-invariants` § 2.3 hard gate）— API 仅入队 + 读 suggestion store
-- boundary test：`tests/boundaries/test_indexing_worker_lanes.py` 加钉「11th lane `graph_node_merge_suggestion` 必启动」
+⚠️ **关键 invariant**：现有 `WorkQueue.push/pop` keyed by `Modality`，Redis key `q:indexing:<modality>` (`orchestrator.py:113-136/220-256`)，`_entrypoint(Modality, concurrency)` 跟 `ModalityWorkerFactory` + `DocumentIndex` payload 绑定 (`orchestrator.py:749-787`)。`Modality` 是 **per-document state machine** (`models.py:47+`)，`graph_curation_run` 是 **per-collection / per-run** job — 强行复用 `Modality` 会污染 `DocumentIndex` / reconciler / index_state。
+
+新增 **独立 queue family** (per ziang BLOCKER 1):
+- 独立 lane name `graph_curation_run`（lane symbolic name appears in indexing-worker task list — 不 hardcode 计数 per cuiwenbo + Bryce + 冬柏 NIT）
+- 独立 Redis key `q:graph_curation_run`（不在 `q:indexing:<modality>` family 内）
+- 独立 push/pop API: `push_graph_curation_run(run_id, collection_id)` / `pop_graph_curation_run()`
+- worker CLI 新增 **独立 loop task**（不走 `_entrypoint(Modality, ...)`），不引入 `Modality.GRAPH_NODE_MERGE_SUGGESTION` enum value
+- 仍 reuse RedisWorkQueue / RedisQuotaBackend infrastructure 底层（Redis client / Lua atomic / quota partitioning），但 **state 隔离 / payload 隔离 / lane state 隔离**
+- API 进程 **不直接调用 dedup scan**（per `task-system-invariants` § 2.3 hard gate）— API 仅 enqueue run_id + 读 suggestion store
+- boundary test：`tests/boundaries/test_indexing_worker_lanes.py` 加钉「`graph_curation_run` lane symbolic name appears in indexing-worker task list **+ API deployment has no executor/import path**」（双侧 lane assertion，per ziang NIT + cuiwenbo NIT 2）
+
+#### 3.1.1.b trigger 策略 reconcile 现有 sync detector 与新 worker（per ziang msg=92321bcc + Bryce msg=4c23f87e BLOCKER 2 — 三策略统一 queue path）
+
+现有两条生成路径必须 reconcile，不允许 Phase A 实施成三套独立执行路径:
+- 现有 `GraphModalityWorker.sync` 末尾 `MergeCandidateDetector.detect_for_sync()` 写 PENDING (`graph.py:1687-1698`)
+- 现有 `GraphCurationService.start_run()` 走 `asyncio.to_thread(generate_graph_curation_run_task)` API fire-and-forget (`service.py:107-123`)
+
+三 trigger 策略 lock：
+- **manual / full sweep**: 复用现有 `GraphCurationRun`，API `POST /graphs/merge-suggestions` 创 run + **enqueue run_id 到新独立 queue family** (`q:graph_curation_run`)。worker pop 后调 `generate_graph_curation_run_task` integration path（必须 description-free per § 3.1.5）。
+- **auto_post_ingest**: 现有 `GraphModalityWorker.sync` 末尾 `detect_for_sync()` 保留 write-only quick path（仅写 PENDING），但**必须同步做 description-free 修复**（per § 3.1.5 + § 3.1.7）— 不能绕过 Wave 5 invariant。auto_post_ingest 不走 worker queue family（避免双路径），但 detect_for_sync 必须 fix Wave 5 violation。
+- **cron**: scheduler 创 `GraphCurationRun`（如同 manual） + enqueue run_id 到 `q:graph_curation_run` queue。复用同 worker pop loop。
+
+不允许 Phase A 实施成三套独立 path — manual + cron 共享 enqueue → worker pop → integration path；auto_post_ingest 是 sync inline write-only 但必修 description-free invariant。
 
 #### 3.1.2 suggestion store + reviewable workflow（per Weston msg=d0e00405 边界 3 + dongdong msg=11813333 BLOCKER read contract fold）
 
@@ -132,14 +150,26 @@ dedup detection 输入仅:
 
 不引入新 graph store method — 全 reuse。
 
-#### 3.1.5 accept apply 路径必须 description-free（per huangzhangshu msg=c9f81309 BLOCKER 1）
+#### 3.1.5 description-free refactor — 6 call sites P0 enumeration（per huangzhangshu msg=c9f81309 BLOCKER 1 + Bryce msg=74f33e19 P1 SCOPE + ziang msg=92321bcc P1 + Weston msg=2b441dc2 BLOCKER 2 多源累计）
 
-⚠️ **关键 invariant**：现有 `aperag/graph_curation/lineage_merge.py` apply 路径会 LLM unified description + compactor + 写 `__curation_merge__` description part + 用 unified description 写 vector — **违反 Wave 5 description-NULL hard invariant**。
+⚠️ **Wave 5 description-NULL hard invariant 修复**：现有 graph_curation 全栈多处依赖 `description` 字段（detection 输入 / scoring weight / DTO snapshot / accept LLM unified / vector embedding），`graph_extractor.py` Wave 5 后 `description` 永远 NULL — 必须 P0 refactor **6 call sites** 全 fix:
 
-修法（Phase A1 / A3 实施前置 refactor）:
-- 抽 `merge_entities_apply_description_free()` variant 走 `LineageGraphStore.merge_entities()` 直接合并 entity 但**不调 LLM**、不写 unified description / compactor part / description vector
+| # | 路径 | 修法 |
+| --- | --- | --- |
+| 1 | `aperag/graph_curation/candidate_generation.py:43` | `entity_snapshot()` 删 `entity.description` read |
+| 2 | `aperag/graph_curation/candidate_generation.py:179-181` | 删 `description_overlap = _jaccard(_tokens(left.description), _tokens(right.description))` + `if description_overlap >= 0.2` |
+| 3 | `aperag/graph_curation/candidate_generation.py:196-197` | 删 `score += min(float(signals["description_token_overlap"]) * 0.20, 0.15)` scoring weight |
+| 4 | `aperag/graph_curation/dto.py:59-65` + `:101-105` | `CurationEntity.description` 字段 input 改成不依赖（基于 source_chunk_ids 兼容路径） |
+| 5 | `aperag/indexing/merge_candidate_detector.py:257-284` | `_description_text_for_scoring()` 填 legacy DTO description — 改成 entity name + type embedding query |
+| 6 | `aperag/indexing/merge_candidate_detector.py:322-328` | snapshot 写 description — 改成 不写 description 字段 |
+
+外加 accept apply 路径 description-free variant:
+- `aperag/graph_curation/lineage_merge.py:246-317` 抽 `merge_entities_apply_description_free()` variant — 不调 LLM unified description / compactor / `__curation_merge__` description part / vector embedding
 - accept worker 仅调 description-free variant — 老 `lineage_merge.py` 路径保留作 manual API 兼容（标 deprecation Lesson #14 multi-iteration cleanup follow-up）
-- boundary test 钉死「accept worker 实施不调 description regen / vector regen」 + grep gate 钉「`graph_node_merge_suggestion` lane 模块 import allowlist 不含 `lineage_merge.unified_description` 类 LLM helper」
+
+boundary test grep gate（per § 5.2）:
+- 6 call sites 全部 grep zero match `description` read（type=`type=python` glob `aperag/graph_curation/**` + `aperag/indexing/merge_candidate_detector.py`）
+- worker accept lane 模块 import allowlist 不含 `lineage_merge.unified_description` / `compactor` / `LLM helper` 类
 
 #### 3.1.6 apply 状态机（per huangzhangshu msg=c9f81309 BLOCKER 2）
 
