@@ -448,6 +448,63 @@ async def test_remove_entity_lineage_member_clears_only_target_doc(store, collec
 
 
 @pytest.mark.asyncio
+async def test_remove_relation_lineage_member_clears_only_target_doc(store, collection_id):
+    """Task #61 P1-G1: relation lineage removal mirrors the entity
+    rewrite invariant.
+
+    Removing ``document_id=doc-A`` MUST clear every matching
+    parse-version slice from both ``evidence_lineage`` and
+    ``description_parts`` while preserving unrelated doc-B evidence.
+    The relation row itself remains; GC is the separate orphan cleanup
+    step tested below.
+    """
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(
+        record=_relation("Alice", "Bob", relation_type="knows"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_relation_with_lineage(
+        record=_relation("Alice", "Bob", relation_type="knows"),
+        lineage=_LM_A_V2,
+    )
+    await s.upsert_relation_with_lineage(
+        record=_relation("Alice", "Bob", relation_type="knows"),
+        lineage=_LM_B_V1,
+    )
+
+    await s.remove_relation_lineage_member(
+        source="Alice",
+        target="Bob",
+        type="knows",
+        document_id="doc-A",
+    )
+
+    got = await s.get_relation("Alice", "Bob", "knows")
+    assert got is not None, "relation row must persist; remove only clears lineage members"
+    assert {(member.document_id, member.parse_version) for member in got.evidence_lineage} == {("doc-B", "v1")}
+    assert {(part.document_id, part.parse_version) for part in got.description_parts} == {("doc-B", "v1")}
+
+
+@pytest.mark.asyncio
+async def test_remove_relation_lineage_member_missing_relation_is_noop(store, collection_id):
+    """Missing relation cleanup MUST be idempotent/no-op across
+    backends. Rebuild scans call removal from scan results that can race
+    with prior GC, so an absent edge must not raise."""
+
+    _, s = store
+    await s.remove_relation_lineage_member(
+        source="Alice",
+        target="Bob",
+        type="knows",
+        document_id="doc-A",
+    )
+    assert await s.get_relation("Alice", "Bob", "knows") is None
+
+
+@pytest.mark.asyncio
 async def test_gc_entity_if_orphan_deletes_only_when_lineage_empty(store, collection_id):
     """``gc_entity_if_orphan`` returns True iff a delete actually ran
     AND only when ``source_lineage`` is empty after upstream cleanup."""
@@ -677,6 +734,64 @@ async def test_list_entity_labels_excludes_orphan_after_gc(store, collection_id)
 
     labels = await s.list_entity_labels()
     assert labels == ["person"]
+
+
+# --- tests: task #61 P1-G2 list_entities stable capability ----------------
+
+
+@pytest.mark.asyncio
+async def test_list_entities_returns_stable_name_order_across_pages(store, collection_id):
+    """Task #61 P1-G2: ``list_entities`` declares a stable name order
+    capability so paged callers can concatenate pages without missing
+    or duplicating rows."""
+
+    _, s = store
+    for name in ("Zara", "Alice", "Bob", "Aaron", "Carol"):
+        await s.upsert_entity_with_lineage(record=_entity(name), lineage=_LM_A_V1)
+
+    rows = await s.list_entities()
+    names = [row.name for row in rows]
+    assert names == ["Aaron", "Alice", "Bob", "Carol", "Zara"]
+
+    page1 = await s.list_entities(limit=2, offset=0)
+    page2 = await s.list_entities(limit=2, offset=2)
+    page3 = await s.list_entities(limit=2, offset=4)
+    assert [row.name for row in [*page1, *page2, *page3]] == names
+    assert await s.list_entities(limit=2, offset=99) == []
+
+
+@pytest.mark.asyncio
+async def test_list_entities_label_filter_paginates_in_stable_name_order(store, collection_id):
+    """Label-filtered pages use the same deterministic ``name`` order
+    and exact ``entity_type`` filtering across all graph backends."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Zara", entity_type="person"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Acme", entity_type="organization"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob", entity_type="person"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Alice", entity_type="person"), lineage=_LM_A_V1)
+
+    page1 = await s.list_entities(label="person", limit=2, offset=0)
+    page2 = await s.list_entities(label="person", limit=2, offset=2)
+    assert [row.name for row in page1] == ["Alice", "Bob"]
+    assert [row.name for row in page2] == ["Zara"]
+    assert [row.name for row in await s.list_entities(label="organization")] == ["Acme"]
+
+
+@pytest.mark.asyncio
+async def test_list_entities_limit_offset_edges(store, collection_id):
+    """``limit <= 0`` returns an empty page and negative offsets are
+    normalized to zero. These edges are part of the Protocol
+    declaration, not backend-specific behaviour."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+
+    assert await s.list_entities(limit=0) == []
+    assert await s.list_entities(limit=-5) == []
+    rows = await s.list_entities(limit=1, offset=-10)
+    assert [row.name for row in rows] == ["Alice"]
 
 
 # --- tests: Wave 7 W7-1 ``compacted_description`` field --------------------
