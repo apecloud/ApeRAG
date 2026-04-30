@@ -101,6 +101,35 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
 - API 进程 **不直接调用 dedup scan**（per `task-system-invariants` § 2.3 hard gate）— API 仅 enqueue run_id + 读 suggestion store
 - boundary test：`tests/boundaries/test_indexing_worker_lanes.py` 加钉「`graph_curation_run` lane symbolic name appears in indexing-worker task list **+ API deployment has no executor/import path**」（双侧 lane assertion，per ziang NIT + cuiwenbo NIT 2）
 
+⚠️ **worker loop fail-safe invariant**（v1.1 amend，per Phase A1 PR #1938 Weston msg=04c9e5ee BLOCKER + architect msg=7af40610 own-up sediment — Lesson #12 v9 fourth-application demo）:
+
+worker `_process_one_run()` catch layer **必须** best-effort fail-safe 标 FAILED — 不能 trust framing 假设「task 内部已 mark FAILED」，因为多处 raise 发生在 `generate_run()` 之前（`integration.py:35-37` collection not found / `integration.py:49-61` backend resolve fail / `tasks.py:17-26` log+re-raise no mark）→ run 留 PENDING + payload 已被 worker pop → 后续 `start_run` 见 active → `created=False` → 不 re-enqueue → collection 手动 full sweep 永久卡死。
+
+强制 invariant:
+```python
+async def _process_one_run(...):
+    try:
+        await generate_graph_curation_run_task(...)
+    except Exception as exc:
+        logger.exception(...)
+        # invariant: best-effort fail-safe mark FAILED if exception raised
+        # BEFORE service.generate_run() persisted FAILED status
+        try:
+            await _mark_run_failed_best_effort(engine, run_id, str(exc)[:1024])
+        except Exception:
+            logger.exception("fail-safe mark failed")
+        # swallow + continue processing next payload
+```
+
+`_mark_run_failed_best_effort` SQL 关键 invariant:
+```sql
+UPDATE graph_curation_runs
+SET status = 'FAILED', error_message = :err, gmt_updated = now()
+WHERE id = :run_id AND status IN ('PENDING', 'RUNNING')
+```
+
+`WHERE status IN ('PENDING', 'RUNNING')` 防覆盖 `generate_run` 内部 try/except 已写的 FAILED/COMPLETED — 只 reset stuck-in-transit。boundary test 钉「worker catch fail-safe gate」per § 5.2.b.
+
 #### 3.1.1.b trigger 策略 reconcile 现有 sync detector 与新 worker（per ziang msg=92321bcc + Bryce msg=4c23f87e BLOCKER 2 — 三策略统一 queue path）
 
 现有两条生成路径必须 reconcile，不允许 Phase A 实施成三套独立执行路径:
@@ -130,6 +159,7 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract + L
   - `SUGGESTION_ACTIONS` const FE 同步扩展 `dismiss` (FE 现有仅 `accept` | `reject`)
 - UI 状态机 contract：pending / apply_pending / applying / applied / apply_failed / rejected / dismissed 7 新态 + legacy `accepted` read-only display + 空态 + 错误态 typed schema 显式（per task #61 backend 收敛 contract pattern）— FE 仅消费不基于 backend 类型分支；legacy `accepted` UI 显示等价于「已应用」终态（历史 sync 路径）
 - review audit trail：accept 调用记录 `reviewer_user_id` + `reviewed_at`，可回滚（rollback API 仅 admin role）
+- ⚠️ **action API response shape contract**（v1.1 amend，per Phase A4 PR #1940 Weston msg=c1595745 BLOCKER + architect msg=e163d88f own-up sediment — Lesson #12 v9 fifth-application demo + mini-pattern 20 候选）: `handle_action()` 三 success return (accept/reject/dismiss) **必须** satisfy `SuggestionActionResponse` model_validate — 含 `message: str` required field（per `aperag/domains/knowledge_graph/schemas.py:381`）。 Boundary test 钉 `SuggestionActionResponse.model_validate({...handle_action_return_shape...})` 跨三 path 防 schemas.py field add 漂浮到 service.py response shape miss 反 pattern (per § 5.2.b)。任何 PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` 单测 boundary gate
 - AlembicMigration **不建新 table** — 仅 extend `graph_curation_suggestions` table（status enum 加 4 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`，**现有 `ACCEPTED` 保留作 legacy terminal/back-compat read-only value**，新 async path 不再写 — 历史 `ACCEPTED` 在 sync `handle_action()` 末尾代表「merge 已执行完成」terminal semantic（per `aperag/graph_curation/service.py:534` 实证），新 async path 用 `apply_pending` 表示「用户已批准但未 apply」避免同名不同义；per dongdong msg=e7d7600a + Weston msg=013fdc47/14859580 + ziang msg=378455ad/c2228ba1 + dongdong msg=ceca6063 集体 converge）+ 加 `evidence_refs` field per task #61 evidence_refs 模式，chain 在 latest head 后
 
 #### 3.1.3 Wave 5 description-NULL 兼容 dedup 算法 + entity_type scope lock（per ziang msg=d6d9dc3c + dongdong msg=83783bc6 + Weston msg=78ab2267 三方 converge）
@@ -208,7 +238,7 @@ boundary test grep gate（per § 5.2）:
 现有 `aperag/graph_curation/service.py:534` sync `handle_action()` 末尾 `suggestion.status = GraphCurationSuggestionStatus.ACCEPTED`（merge 已 sync 执行完成后写入），ACCEPTED 在历史代码中是 **terminal status = 「merge 已执行完成」**。新 async path 如果复用 `ACCEPTED` 表示「已批准但未 apply」会让旧数据和新数据同名不同义 → 引入新 enum value `apply_pending` 表示新 async 决策态，**`ACCEPTED` 保留作 legacy terminal/back-compat read-only value，新 async path 不再写**（FE typed schema 显示兼容 + DB 存在但新代码 zero-write）。
 
 跟 cuiwenbo msg=61800dd6 NIT 2 FE 现有 enum (`PENDING/ACCEPTED/REJECTED/EXPIRED`) align 选择：
-- spec lock **lowercase** + 新加 `apply_pending/applying/applied/apply_failed` 4 enum value（`dismissed` 已存在于现有 enum，不算新加 — per huangzhangshu PR comment <https://github.com/apecloud/ApeRAG/pull/1931#issuecomment-4350226415> + msg=d575e03c）
+- spec lock **lowercase** + 新加 `apply_pending/applying/applied/apply_failed/dismissed` **5 enum value**（v1.1 amend per Phase A2 PR #1935 ziang msg=3d1266e8 第一性原理 grep main 实证：现有 enum 仅 `PENDING/ACCEPTED/REJECTED/EXPIRED/SUPERSEDED` 5 值 — **DISMISSED 由 task #76 PR #1935 引入**，不是 v1 spec 假设的「现有」— Lesson #12 v9 third-application demo + mini-pattern 19 spec lock pre-check grep main 实证 enum/contract assumption。v1 fix-forward 6 错误地将 DISMISSED 当作现有值依赖了 huangzhangshu PR comment <https://github.com/apecloud/ApeRAG/pull/1931#issuecomment-4350226415> 没 grep verify）
 - FE typed schema 同步扩展 `MergeSuggestionStatus` (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat 历史 placeholder，新代码不再写入；`ACCEPTED` 同样保留作 legacy terminal read-only)
 - Migration chain 时序：PG enum 加 4 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`（`alembic upgrade head` 跨 backend 跑过）— `ACCEPTED` 保留 legacy semantic
 
@@ -305,6 +335,27 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
 - **audit trail**：accept 调用记录 `GraphCurationSuggestion.reviewer_user_id` + `reviewed_at`；apply 完成写 `applied_at`；apply_failed 保留 retry 次数 cap
 - **idempotent replay**：前一次 accept fail 后 retry 不会重复合并（per task #61 P0 atomicity invariant）
 - **Pydantic Field validator on `MergeSuggestionView.confidence_score`**：锁 `0 <= score <= 1`（per cuiwenbo msg=49beb855 NIT 3 + Lesson #17 backend 收敛 contract pattern + PR #1930 SearchHit.score 同 pattern）
+- **action API response shape model_validate gate**（v1.1 amend per PR #1940 Weston msg=c1595745 BLOCKER + first-application demo via PR #1940 `test_suggestion_action_response_requires_valid_success_shapes`）: `SuggestionActionResponse.model_validate({...handle_action_return_shape...})` 跨 accept/reject/dismiss 三 path 单测 — 防 schemas.py field add 漂浮到 service.py response shape miss 反 pattern。任何 PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` boundary gate (mini-pattern 20 候选)
+- **worker catch fail-safe gate**（v1.1 amend per PR #1938 Weston msg=04c9e5ee BLOCKER + Phase A1 fix-forward `825b55d3`）: `_mark_run_failed_best_effort(engine, run_id, exc_message)` 单测钉 `WHERE status IN ('PENDING', 'RUNNING')` SQL 谓词 + error_message 截断 1024 chars + DB I/O 异常不传播 + worker loop 必继续 pop 后续 payload (per § 3.1.1 worker loop fail-safe invariant)
+- **mechanical gate self-protection scope test**（v1.1 amend per PR #1941 chenyexuan fix-forward `8116639` huangzhangshu msg=2deb5407 BLOCKER）: 任何 boundary AST gate 必加 positive control test (synthetic violation 构造 → assert gate catch) + negative control test (live spec-allowed shape → assert 0 false positives) — 防 future 又走老路 whole-file exclude 静默削弱 gate 反 pattern。e.g. `test_dto_module_is_in_boundary_scope` + `test_dto_field_declaration_is_not_a_false_positive` 两 sister tests 范本
+
+#### 5.2.c Phase A 实施 sediment trail（v1.1 amend — onboarding ref + future spec lock prerequisite reference）
+
+Phase A 4 PR 全员协作落地（4 PR / 4 sub-task / 6 lane impl + multi-iteration fix-forward fold all BLOCKER）：
+
+| sub-task | PR | merge commit | 关键 BLOCKER fold-in trail |
+|---|---|---|---|
+| #75 A1 worker queue family | #1938 | `4cd2e6f1` | Weston BLOCKER worker catch fail-safe (msg=04c9e5ee) → fix-forward `825b55d3` _mark_run_failed_best_effort + tests |
+| #76 A2 status enum extend | #1935 | `6fc6f64f` | ziang DISMISSED enum 第一性原理 grep main 实证 (spec drift) + dongdong response_model legacy field BLOCKER (msg=99aa83ea) → fix-forward `3b447dfe` projection layer |
+| #77 A3 description-free 6+1 | #1941 | `0535bf4` | huangzhangshu boundary gate `dto.py` whole-file exclude BLOCKER (msg=2deb5407) → fix-forward `8116639` AST scan inclusion + 2 sister tests; mechanical gate auto-catch service.py:845 hidden read (Lesson #18 second-app) |
+| #78 A4 FE merge suggestion UI | #1940 | `b545294` | Weston SuggestionActionResponse.message required field BLOCKER (msg=c1595745) → fix-forward `4769cd57` 三 success return 补 message + model_validate 单测 + cuiwenbo NIT 1 legacy ACCEPTED label semantic |
+
+集体 own-up sediment（架构师 + reviewers 三方 catch trail）：
+- **架构师 trust-framing miss**：fix-forward 6 引用 huangzhangshu PR comment "DISMISSED 已存在" 没 grep main verify (PR #1935 ziang catch) / ratify CR #1938 trust 注释 "task already persisted FAILED" 没 grep verify upstream raise points (Weston catch) / ratify CR #1940 trust dismiss branch + Literal 加 没 grep verify SuggestionActionResponse model_fields required (Weston catch)
+- **reviewer first-principles verify catch**: ziang impl-side grep main + Weston spec → impl 边界 trace + huangzhangshu boundary gate scope 自身审计 + chenyexuan implementation auto-catch (mechanical gate first-application real-world demo)
+- **mini-pattern 19 升级**: 三层 grep verify 边界 (spec → impl + impl → response_model contract + impl catch path → upstream raise points)
+- **mini-pattern 20 候选 (PR #1940 first-app)**: PR adds response_model wire-up 必跑 model_validate(actual_handler_return_shape) boundary gate
+- **Lesson #18 候选 second + third-app**: mechanical gate 把 reviewer-as-detector 换成 CI auto-catch 真实价值实证 + gate 自身 protection scope 也要被 mechanical-test 防止 whole-file exclude 静默失效
 
 ### 5.3 e2e smoke
 
@@ -331,7 +382,16 @@ per task #30 B3 pattern:
 - **Lesson #16**（workflow paths filter dead reference）— 新 worker lane 加 `compat-test.yml` paths filter 同步
 - **Lesson #17**（backend 收敛 contract 而非 FE 加 branch / simple-stable family）— suggestion store schema + capability matrix backend 收敛，FE typed schema 仅消费不分支
 - **Lesson #18 候选**（lesson sediment + mechanical gate 双 layer codification — 一记一 enforce，per huangheng msg=b18d26ee + chenyexuan PR #1933 first-application demo）— task #31 P1 实施 `kg.merge_suggestion_score_threshold` default 走「lesson 文字 (#17 backend 收敛 contract) + mechanical gate (`tests/unit_test/contracts/test_merge_suggestion_score_threshold_default_consistency.py`) 双 layer codification」
-- **Migration chain 时序**（task #31 仅 extend `graph_curation_suggestions` table status enum 4 新 value + 加 `evidence_refs` field — **不建新 `merge_suggestion` table**，per Bryce + Weston + ziang BLOCKER 1）
+- **Lesson #12 v9 third + fourth + fifth-application demos** (v1.1 amend per Phase A 实施 sediment trail) — 三 PR 同 hour 累计 first-principles trace catch architect ratify trust-framing miss:
+  - **third-app**: PR #1935 ziang DISMISSED enum catch (main 现有 enum grep 实证 spec 假设错误) + dongdong response_model legacy field filter BLOCKER
+  - **fourth-app**: PR #1938 Weston worker catch fail-safe BLOCKER (上游 raise 点 trace `integration.py:35-37/49-61` + `tasks.py:17-26`)
+  - **fifth-app**: PR #1940 Weston `SuggestionActionResponse.message` required field catch (response_model 漂移 service.py response shape miss)
+- **mini-pattern 19 hard gate** (v1.1 amend) — spec lock pre-check：spec 抽象描述「现有 X enum / table / Protocol method 已有 value Y / column Z / signature S」时 architect / spec author **必须** `grep -n "Y" <现有文件>` 实证 codebase，**不接受 reviewer PR comment 口头主张作为依据**。范围三层：spec → impl 边界 + impl → response_model contract 边界 + impl catch path → upstream raise points 边界
+- **mini-pattern 20 候选** (v1.1 amend per PR #1940 first-application demo) — 「PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` 单测 boundary gate」防 schemas.py field add 漂浮到 service.py response shape miss 反 pattern (cite PR #1940 `test_suggestion_action_response_requires_valid_success_shapes` 范本)
+- **Lesson #18 候选 second + third-application demos** (v1.1 amend per Phase A3 PR #1941):
+  - **second-app**: boundary AST gate 自动 catch service.py:845 hidden read (spec author + 6 reviewer 集体漏 bonus catch)
+  - **third-app**: boundary fix-forward `8116639` 加 sister tests (positive control + negative control) 防 future「whole-file exclude 静默削弱 gate」回潮 (per huangzhangshu BLOCKER msg=2deb5407)
+- **Migration chain 时序**（task #31 仅 extend `graph_curation_suggestions` table status enum **5 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED/DISMISSED`** + 加 `evidence_refs` field — **不建新 `merge_suggestion` table**，per Bryce + Weston + ziang BLOCKER 1 + ziang DISMISSED grep main 实证 v1.1 amend）
 - **简单稳定 + 私有化部署免维护 4 guardrail**
 
 ## 7. 关联文档
@@ -356,4 +416,12 @@ per task #30 B3 pattern:
 
 **起草**：@符炫炜（总架构师）
 **日期**：2026-04-30
-**版本**：v1（task #31 spec lock 候选；@Weston 架构 CR + earayu2 ratify 后 PM @不穷 按 Phase A / Phase B / Phase C 调度实施 PR）
+**版本**：
+- **v1** (2026-04-30 spec lock，PR #1931 merged commit `29b82e22` — 6 fix-forward iterations / 8 lane LGTM / earayu2 directive driven)
+- **v1.1 amend** (2026-04-30 Phase A 4/4 done 后，本 PR — fold Phase A 实施 surface 的 spec drift + spec lock invariants + lesson sediment trail):
+  - § 3.1.1 worker loop fail-safe invariant (PR #1938 Weston BLOCKER)
+  - § 3.1.2 action API response shape model_validate contract (PR #1940 Weston BLOCKER)
+  - § 3.1.6 DISMISSED enum source 修正 (PR #1935 ziang grep main 实证)
+  - § 5.2.b 新增 3 boundary test invariants (model_validate gate + worker fail-safe gate + mechanical gate self-protection scope)
+  - § 5.2.c 新增 Phase A 实施 sediment trail (4 PR + 8 BLOCKER fold-in 全 trail)
+  - § 6 cr-checklist 新增 Lesson #12 v9 third-fifth-app demos + mini-pattern 19 hard gate + mini-pattern 20 候选 + Lesson #18 候选 second-third-app demos
