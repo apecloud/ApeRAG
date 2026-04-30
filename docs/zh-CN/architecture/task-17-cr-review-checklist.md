@@ -742,7 +742,7 @@ Lesson #12 v9 (first-principles verify catch surface signal mistakes) 在 task #
 **fifth-application demo (PR #1940 task #78 A4)**：Weston catch `SuggestionActionResponse.message` required field 漂移
 
 - A4 first-iteration 加 response_model wire-up 但 `handle_action()` accept/reject/dismiss 三 success return 漏 `message` field
-- response_model `SuggestionActionResponse.message: str` required → service.py response shape miss → API 实际返回 422 missing field
+- response_model `SuggestionActionResponse.message: str` required → service.py response shape miss → response_model validation fail (FastAPI `ResponseValidationError` → HTTP 500，不是 request body 校验的 422)
 - Weston catch 修法 `4769cd57`: 三条 action path 补 `message` field + 加 `test_suggestion_action_response_requires_valid_success_shapes` boundary test 用 `SuggestionActionResponse.model_validate(...)` 钉 shape — 升格为 mini-pattern 20「response_model wire-up 必跑 model_validate gate」
 
 **判断准则升级**（v9 systemic 信号确立后）：
@@ -778,7 +778,7 @@ Lesson #17 (backend 收敛 contract 优于上层 fork) 在 task #31 Phase A2 累
 
 **second-application** (PR #1935 commit `3b447dfe`)：
 
-- backend canonical schema `GraphMergeSuggestionItem`: `run_id / reason / target_entity_id / entities / score / status / created_at / reviewer_user_id / reviewed_at / evidence_refs / observed_types / type_conflict / suggested_entity_type`
+- backend canonical schema `GraphMergeSuggestionItem`: `run_id / reason / target_entity_id / entities / confidence_score / status / created/updated/operated_at / evidence_refs / legacy aliases (suggestion_batch_id=run_id / merge_reason=reason / suggested_target_entity 从 target snapshot 投影)` — A4 (PR #1940) `observed_types/type_conflict/suggested_entity_type/affected_doc_count` 是 **FE-derived display**（FE 从 `entities` / `suggested_target_entity` / `evidence_refs` 推导），不是 PR #1935 backend projection（per Weston msg=7690b723 cite accuracy verify）
 - legacy compat projection: `suggestion_batch_id=run_id` (alias) / `merge_reason=reason` (alias) / `suggested_target_entity` 从 target snapshot 投影 + fallback to `target_entity_id`
 - FE 现有 review panel 读 legacy 字段不破 → A4 (PR #1940) 切 canonical 字段后 legacy projection 标 deprecation marker → 老 backward-compat 在 release cycle 后清理 (Lesson #14 multi-iteration cleanup family)
 
@@ -847,7 +847,7 @@ per architect msg=b6726ac9 升格 — 「PR adds response_model wire-up 必跑 `
 **first-application demo (PR #1940 task #78 A4 commit `4769cd57`)**:
 
 - A4 first-iteration 加 `response_model = SuggestionActionResponse` wire-up + 改 `handle_action()` accept/reject/dismiss 三 success return shape
-- BUT `SuggestionActionResponse.message: str` required field — accept/reject/dismiss 三 path success return 都漏 `message` field → API 实际返回 422 missing field
+- BUT `SuggestionActionResponse.message: str` required field — accept/reject/dismiss 三 path success return 都漏 `message` field → response_model validation fail (FastAPI `ResponseValidationError` → HTTP 500，不是 request body 校验的 422)
 - Weston catch 修法 `4769cd57`:
   - 三 action path 补 `message` field
   - **加 `test_suggestion_action_response_requires_valid_success_shapes` boundary test 用 `SuggestionActionResponse.model_validate(...)` 钉三条返回 shape**
