@@ -4,8 +4,20 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'aperag/domains/knowledge_graph/graphindex/**'
+      # Real graph store implementations (Neo4j / Nebula / PG).
+      # The legacy ``aperag/domains/knowledge_graph/graphindex`` tree
+      # has been gradually migrated under ``aperag/indexing/graph_storage``;
+      # without this entry, Backend-Compat-Test does NOT trigger when a
+      # PR modifies neo4j.py / nebula.py / postgres.py — exactly the
+      # invariant this workflow exists to defend.
+      - 'aperag/indexing/graph_storage/**'
+      # Vector store adapters (PGVector / Qdrant).
       - 'aperag/vectorstore/**'
+      # Legacy graphindex shim path kept as a defensive trigger; the
+      # active backend code now lives under aperag/indexing/graph_storage/
+      # but follow-up commits may still touch this tree, and removing
+      # the entry could miss those.
+      - 'aperag/domains/knowledge_graph/graphindex/**'
       - 'tests/integration/compat/**'
       - '.github/workflows/compat-test.yml'
   workflow_dispatch:
