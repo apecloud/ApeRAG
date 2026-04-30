@@ -78,7 +78,24 @@ _DEFAULT_LANGUAGE = "zh-CN"
 _DEFAULT_MAX_ENTITIES_PER_CHUNK = 32
 _DEFAULT_MAX_RELATIONS_PER_CHUNK = 32
 _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS = 60.0
-_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1
+_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 2
+"""Default value for ``graph_extraction_window_size`` (task #30 B3).
+
+Sweet spot lock per earayu2 directive ``msg=adb0c366``：「效果稍微降低
+一点是可以接受的，总架构师拍板一个甜蜜点，默认至少是 2，根据性价比决
+定」。 Architect verdict ``msg=08ebb696``: ``window_size=2`` is the
+sweet spot per Planetegg B2 full matrix (msg=096e0089) — ``calls`` -50%
+/ Qwen ``cost`` -26% / ``wall`` -44% / Gemini ``cost`` -17% with
+acceptable entity drop ≤0.07 and relation lift +0.028; ``json_ok=1.0``
+and ``source_chunk_ids_valid_rate≥0.992`` cross-model. ``window_size=3``
+is dominated (Qwen wall +20% / relation drop / Gemini json drift
+1/3 fail). ``window_size=5`` is model-specific (good on Gemini, Qwen
+entity 0.754 — too risky for global default).
+
+Sample limitation免责（per Weston ``msg=4b7f2357`` + Planetegg
+``msg=181518f2``): 3 benchmark sample insufficient to support
+per-model auto default; future change requires larger sample + multi-
+model 同时不退步 evidence."""
 
 # Per-document concurrency cap for LLM extraction calls. Mirrors the
 # ``DEFAULT_LLM_CONCURRENCY = 4`` precedent in
