@@ -172,20 +172,33 @@ def _description_read_offenders_in(path: Path) -> list[tuple[int, str]]:
 
 
 def test_graph_curation_modules_do_not_read_entity_description() -> None:
-    """``aperag/graph_curation/**`` (excl. ``lineage_merge.py`` legacy path
-    + ``dto.py`` field declaration) must not read
-    ``entity.description`` / ``.compacted_description`` /
-    ``.description_parts``.
+    """``aperag/graph_curation/**`` (excl. ``lineage_merge.py`` legacy
+    path) must not read ``entity.description`` /
+    ``.compacted_description`` / ``.description_parts``.
 
     Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5 +
     § 5.2.a): the dedup detection / candidate scoring / snapshot
     surface in ``graph_curation/`` no longer derives signals from
     descriptions. ``lineage_merge.merge_entities`` (legacy
     description-bearing variant) is excluded by file allowlist
-    because the spec preserves it for manual API back-compat;
-    ``dto.py`` is excluded because the ``description`` field
-    *declaration* (annotation) is a static type expression, not a
-    read of an entity instance's description.
+    because the spec preserves it for manual API back-compat — the
+    new accept-apply variant
+    (``merge_entities_apply_description_free``) is gated by a
+    dedicated assertion below.
+
+    ⚠️ ``dto.py`` is **in scope** (per huangzhangshu BLOCKER on PR
+    #1941, msg=2deb5407): spec § 3.1.5 lists
+    ``CurationEntity.from_lineage`` as one of the 6 description-free
+    call sites, so the gate must catch future regressions that
+    re-introduce ``entity.compacted_description`` /
+    ``entity.description_parts`` reads inside ``from_lineage``.
+    Dataclass field *declarations* (``description: str = ""``) are
+    ``ast.AnnAssign`` nodes, and constructor *keyword args*
+    (``cls(description="")``) are ``ast.keyword`` nodes — neither is
+    an ``ast.Attribute`` access on an entity object, so the AST
+    walker does not false-positive on them. The boundary catches
+    *reads* of the form ``entity.description`` / ``.compacted_description``
+    / ``.description_parts`` only.
     """
 
     offenders: list[str] = []
@@ -195,9 +208,8 @@ def test_graph_curation_modules_do_not_read_entity_description() -> None:
         #     (the new accept-apply worker uses
         #     merge_entities_apply_description_free which is enforced
         #     by `test_lineage_merge_apply_description_free_does_not_read_entity_description`)
-        #   * dto.py — field declaration only; constructors / from_lineage
-        #     never read entity.description
-        if path.name in {"lineage_merge.py", "dto.py"}:
+        # NB: ``dto.py`` is intentionally NOT excluded — see docstring.
+        if path.name == "lineage_merge.py":
             continue
         for lineno, snippet in _description_read_offenders_in(path):
             offenders.append(_format_offender(path, lineno, snippet))
@@ -288,6 +300,76 @@ def test_lineage_merge_apply_description_free_does_not_read_entity_description()
         "step (LLM unified / compactor / sentinel description write / vector embed). "
         "Reading entity.description / .compacted_description / .description_parts "
         "would re-introduce the legacy path. Offenders:\n" + "\n".join(offenders)
+    )
+
+
+def test_dto_module_is_in_boundary_scope() -> None:
+    """Sanity check: ``aperag/graph_curation/dto.py`` MUST be in the
+    AST-scan scope of
+    :func:`test_graph_curation_modules_do_not_read_entity_description`.
+
+    Per spec § 3.1.5 item 4, ``CurationEntity.from_lineage`` is one
+    of the 6 description-free call sites. The boundary gate must
+    therefore catch any future regression that re-introduces
+    ``entity.compacted_description`` / ``entity.description_parts``
+    reads inside ``from_lineage``. Whole-file excluding ``dto.py``
+    would silently disable this protection
+    (per huangzhangshu BLOCKER on PR #1941, msg=2deb5407).
+
+    Synthetic regression check: simulate a re-introduced read inside
+    a temporary AST node and assert that the offender detector
+    surfaces it. We don't actually mutate ``dto.py`` on disk — we
+    construct a fake AST module containing the forbidden pattern and
+    feed it through the same matcher used by the file-scoped gate.
+    """
+    # Build a fake `from_lineage` body that re-introduces
+    # `entity.compacted_description` read.
+    fake_source = (
+        "def from_lineage(entity):\n"
+        "    description = entity.compacted_description or ''\n"  # forbidden
+        "    return description\n"
+    )
+    tree = ast.parse(fake_source)
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        if node.attr not in FORBIDDEN_DESCRIPTION_READS:
+            continue
+        if isinstance(getattr(node, "ctx", None), ast.Store):
+            continue
+        if isinstance(node.value, ast.Name) and node.value.id in NON_ENTITY_BASE_NAMES:
+            continue
+        offenders.append(node.attr)
+
+    assert offenders, (
+        "AST gate failed to flag a re-introduced `entity.compacted_description` read — "
+        "this would let `dto.py` regress without the boundary catching it."
+    )
+    assert "compacted_description" in offenders
+
+
+def test_dto_field_declaration_is_not_a_false_positive() -> None:
+    """The ``description: str = ""`` dataclass annotation in
+    ``CurationEntity`` must NOT trip the gate.
+
+    AST shape: ``ast.AnnAssign`` with ``target=ast.Name("description")``
+    — not ``ast.Attribute``. Same for the constructor keyword arg
+    ``description=""`` (``ast.keyword``).
+    """
+    # Confirm the live ``dto.py`` is in scope and produces zero
+    # offenders today (the explicit positive control sister of
+    # ``test_graph_curation_modules_do_not_read_entity_description``).
+    dto_path = REPO_ROOT / "aperag" / "graph_curation" / "dto.py"
+    assert dto_path.exists()
+    offenders = _description_read_offenders_in(dto_path)
+    assert not offenders, (
+        "`dto.py` should produce zero AST-form description reads after "
+        "task #31 A3. If this fails, either `from_lineage` regressed "
+        "(actual offender) or the AST walker is mis-classifying field "
+        "annotations / keyword args as reads (false positive — fix the "
+        "walker, do NOT allowlist dto.py whole-file).\n"
+        f"Offenders: {offenders}"
     )
 
 
