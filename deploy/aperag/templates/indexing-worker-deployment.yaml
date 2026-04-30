@@ -83,6 +83,28 @@ spec:
               value: {{ .Values.indexingWorker.dbPoolSize | quote }}
             - name: DB_MAX_OVERFLOW
               value: {{ .Values.indexingWorker.dbMaxOverflow | quote }}
+            {{- if .Values.neo4j.enabled }}
+            - name: NEO4J_URI
+              value: {{ .Values.neo4j.NEO4J_URI | quote }}
+            - name: NEO4J_USERNAME
+              {{- if .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+                  key: username
+              {{- else }}
+              value: {{ .Values.neo4j.NEO4J_USERNAME | default "neo4j" | quote }}
+              {{- end }}
+            - name: NEO4J_PASSWORD
+              {{- if .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+                  key: password
+              {{- else }}
+              value: {{ .Values.neo4j.NEO4J_PASSWORD | default "neo4j" | quote }}
+              {{- end }}
+            {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           name: aperag-indexing-worker
           imagePullPolicy: {{ .Values.image.pullPolicy }}
