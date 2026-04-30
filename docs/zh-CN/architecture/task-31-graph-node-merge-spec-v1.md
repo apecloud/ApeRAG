@@ -174,34 +174,42 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
 
 ## 4. 实施 sub-task 拆分（parallel-friendly）
 
-### Phase A（必须做，并行）
+### Phase A（必须做，并行 — extract / fix / extend，**不 build new**）
 
-- **#31-A1**：worker lane + queue infrastructure
-  - `aperag/cli/indexing_worker.py` 加 11th lane `graph_node_merge_suggestion`
+- **#31-A1 (extract)**：worker lane + queue 从 sync-inline 抽出
+  - `aperag/cli/indexing_worker.py` 加 lane `graph_node_merge_suggestion`（lane name symbolic 不 hardcode 计数 — per Bryce + cuiwenbo + 冬柏 NIT）
   - `RedisWorkQueue.graph_node_merge_suggestion` queue declaration
-  - boundary test 钉「lane 必启动」
-  - 推荐 owner：@Bryce / @ziang（熟 task #17 worker CLI + RedisWorkQueue）
-- **#31-A2**：suggestion store + Alembic migration
-  - 新 `MergeSuggestion` Pydantic schema (`aperag/schema/common.py` 或 `domains/knowledge_graph/schemas.py`)
-  - 新 PG table + Alembic migration（chain head）
-  - CRUD service layer + boundary test (round-trip + status transition)
-  - 推荐 owner：@ziang（熟 graph_curation domain）
-- **#31-A3**：dedup detection 算法 + Wave 5 description-NULL 兼容
-  - 算法实现 (name_exact / name_fuzzy / type_compatible / embedding_topk / source_chunk_overlap)
-  - Pre-filter (per § 2.3 P2-31-A) candidate bucket
-  - boundary test 钉「不读 description 字段」+ 各算法 invariant
+  - 现有 `aperag/graph_curation/service.py:114-123` `asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task, ...))` API 进程同步路径 → 改成 `enqueue_to_redis_queue` API 进程
+  - worker `MergeSuggestionWorker` 消费队列，调用现有 `MergeCandidateDetector` (Wave 7 §K.12.4)
+  - boundary test 钉 lane name symbolic appears in lane list (`tests/boundaries/test_app_lifespan_no_workers.py` extend per 冬柏 msg=e92af542 推荐 (a))
   - 推荐 owner：@Bryce / @ziang
-- **#31-A4**：用户面 review API + UI
-  - `POST /api/v2/collections/{id}/merge-suggestions/{id}/accept|reject|dismiss`
-  - typed schema 暴露 `MergeSuggestion` shape (per task #71 dongdong typed schema lane)
-  - UI（前端 graph viz 页面加 review queue panel）
+- **#31-A2 (extend)**：复用 `GraphCurationSuggestion` 现有 table + extend status enum
+  - **不引入新 table** (per Bryce + Weston BLOCKER) — 复用 `aperag/domains/knowledge_graph/db/models.py:107` `GraphCurationSuggestion`
+  - status enum extend：现有 `PENDING/ACCEPTED/REJECTED/DISMISSED` + 新加 `APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`（per § 3.1.6 7-state machine）
+  - PG enum migration + FE typed schema sync (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat)
+  - boundary test (status transition + apply state machine)
+  - 推荐 owner：@ziang（熟 graph_curation domain + Wave 7 §K.12.4）
+- **#31-A3 (fix)**：description-free refactor — Wave 5 invariant 修复 4 处具体 call site
+  - `aperag/graph_curation/candidate_generation.py:43` `entity_snapshot()` 删 `entity.description` read（per Bryce P1 SCOPE）
+  - `candidate_generation.py:179-181` 删 `description_overlap = _jaccard(_tokens(left.description), _tokens(right.description))` + `if description_overlap >= 0.2`
+  - `candidate_generation.py:196-197` 删 `score += min(float(signals["description_token_overlap"]) * 0.20, 0.15)` scoring weight
+  - `aperag/graph_curation/dto.py:59-65` + `:101-105` `CurationEntity.description` 字段 input 改成不依赖（基于 source_chunk_ids 兼容路径）
+  - `aperag/indexing/merge_candidate_detector.py:263-271` description text embedding query → 改基于 entity name + type embedding
+  - `aperag/graph_curation/lineage_merge.py:246-317` 抽 `merge_entities_apply_description_free()` variant — 不调 LLM unified description / compactor / `__curation_merge__` description part / vector embedding（per § 3.1.5）
+  - boundary test grep gate：worker accept lane allowlist 不含 `description`/`compactor`/`unified_description` 等 LLM helper module
+  - 推荐 owner：@Bryce / @ziang（熟 graph_curation + indexing 双侧）
+- **#31-A4 (reuse)**：复用现有 `/graphs/merge-suggestions` endpoint + extend
+  - **不引入新 path** (per cuiwenbo + dongdong + Weston BLOCKER) — 复用 `aperag/domains/knowledge_graph/api/routes.py:187/213/242` 现有 `POST` (run) + `GET` (list/read) + `POST .../action` endpoints
+  - extend list/detail typed schema 加 `evidence_refs`（per task #61 evidence_refs 模式）+ `affected_doc_count` + 新 status values
+  - extend `SUGGESTION_ACTIONS` 加 `dismiss`（FE 现仅 `accept/reject`）
+  - cron + manual + auto_post_ingest 三 trigger strategy（manual 复用 `POST` run）
   - 推荐 owner：@dongdong + @cuiwenbo
 
 ### Phase B（依赖 Phase A 实施 PR merged）
 
-- **#31-B1**：CR + boundary test gate（@huangheng）
-- **#31-B2**：integration test e2e（@huangzhangshu / @冬柏）
-- **#31-B3**：deploy verify（@Planetegg SRE — Helm worker 11th lane env / queue 配置）
+- **#31-B1**：CR + boundary test gate（@huangheng — 含 description-free grep gate + Lesson framework cross-link）
+- **#31-B2**：integration test e2e（@huangzhangshu testing primary / @冬柏 peer）+ **`LineageEntityMerger` cross-backend boundary test 加进 `tests/integration/compat/test_lineage_graph_compat.py`**（per Bryce P1 GAP — 钉跨 Neo4j/Nebula/PG 三 backend description-free merge 行为契约）
+- **#31-B3**：deploy verify（@Planetegg SRE — `helm template --set neo4j.enabled=true` 验证 indexing-worker 包含 `graph_node_merge_suggestion` lane env / queue 配置；API deployment 不新增执行入口 per Planetegg msg=305d7843 Helm render gate）
 
 ### Phase C（数据驱动 follow-up）
 
@@ -212,11 +220,11 @@ per § 2.2 三 strategy + 算法 capability matrix collection-level config（**�
 
 ### 5.1 Phase A 完成标准
 
-- 11th worker lane `graph_node_merge_suggestion` 启动 + boundary test 钉
-- `merge_suggestion` table + Alembic migration head chain ✅ +`alembic upgrade head` 跨 backend (PG) 跑过
-- dedup detection 5 算法全实施 + capability matrix collection-level config 暴露 typed schema + UI 显示 capability flag (per task #71 dongdong recommend)
-- review API accept/reject/dismiss 全实施 + typed schema 暴露 + UI review queue panel
-- description-NULL 兼容 boundary test 钉「dedup detection 不读 description 字段」
+- worker lane `graph_node_merge_suggestion` 启动 + boundary test 钉**lane name symbolic appearance**（不 hardcode 计数，per Bryce + cuiwenbo + 冬柏 NIT）
+- 复用 `GraphCurationSuggestion` table + Alembic migration extend status enum 4 新 value（`APPLY_PENDING/APPLYING/APPLY_FAILED/APPLIED`），跨 backend (PG) `alembic upgrade head` 跑过
+- dedup detection 复用现有 `MergeCandidateDetector` + extend 5 算法 capability matrix + collection-level config 暴露 typed schema
+- 复用现有 `/graphs/merge-suggestions` endpoint + extend `SUGGESTION_ACTIONS` 加 `dismiss` + UI review queue panel
+- description-free refactor 完整：4 处具体 call site (candidate_generation.py:43/179-181/196-197 + dto.py:59-65/101-105 + merge_candidate_detector.py:263-271 + lineage_merge.py:246-317) 全 fix + boundary test grep gate
 
 ### 5.2 boundary test gate（CI must pass）
 
