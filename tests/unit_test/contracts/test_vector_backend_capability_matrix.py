@@ -114,9 +114,7 @@ def test_static_matrix_covers_supported_backends() -> None:
         ("  pgvector  ", "pgvector"),
     ],
 )
-def test_project_vector_backend_info_normalizes_input(
-    raw_value: str, expected_backend: str
-) -> None:
+def test_project_vector_backend_info_normalizes_input(raw_value: str, expected_backend: str) -> None:
     info = project_vector_backend_info(raw_value)
     assert isinstance(info, VectorBackendInfo)
     assert info.type == expected_backend
@@ -228,19 +226,24 @@ def test_collection_constructor_ignores_vector_backend_input() -> None:
     # NOT equal the malicious payload — the actual projection depends
     # on the active ``settings.vector_db_type`` in the test runtime.
     rendered = instance.model_dump()
-    assert rendered.get("vector_backend") != {
-        "type": "qdrant",
-        "capabilities": {
-            "supports_atomic_batch_upsert": False,
-            "supports_filter_or_with_empty_parts": False,
-            "supports_legacy_mode": True,
-        },
-    } or rendered.get("vector_backend") == project_vector_backend_info(
-        # If the test deployment happens to be qdrant the values may
-        # coincide; in that case the equality is fine because it came
-        # from the projection helper, not the input payload.
-        "qdrant"
-    ).model_dump()  # type: ignore[union-attr]
+    assert (
+        rendered.get("vector_backend")
+        != {
+            "type": "qdrant",
+            "capabilities": {
+                "supports_atomic_batch_upsert": False,
+                "supports_filter_or_with_empty_parts": False,
+                "supports_legacy_mode": True,
+            },
+        }
+        or rendered.get("vector_backend")
+        == project_vector_backend_info(
+            # If the test deployment happens to be qdrant the values may
+            # coincide; in that case the equality is fine because it came
+            # from the projection helper, not the input payload.
+            "qdrant"
+        ).model_dump()
+    )  # type: ignore[union-attr]
 
 
 def test_vector_backend_info_pydantic_round_trip() -> None:

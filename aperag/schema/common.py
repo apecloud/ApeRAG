@@ -331,16 +331,12 @@ class VectorBackendCapabilities(BaseModel):
 
     supports_atomic_batch_upsert: bool = Field(
         ...,
-        description=(
-            "Whether the backend guarantees atomic visibility of a batch upsert. "
-            "Per task #83 P1-V2."
-        ),
+        description=("Whether the backend guarantees atomic visibility of a batch upsert. Per task #83 P1-V2."),
     )
     supports_filter_or_with_empty_parts: bool = Field(
         ...,
         description=(
-            "Whether the backend accepts a top-level OR filter that contains "
-            "empty/no-op parts. Per task #83 P1-V3."
+            "Whether the backend accepts a top-level OR filter that contains empty/no-op parts. Per task #83 P1-V3."
         ),
     )
     supports_legacy_mode: bool = Field(
@@ -364,10 +360,7 @@ class VectorBackendInfo(BaseModel):
 
     type: Literal["pgvector", "qdrant"] = Field(
         ...,
-        description=(
-            "Active deployment vector backend identity, projected from "
-            "``settings.vector_db_type``."
-        ),
+        description=("Active deployment vector backend identity, projected from ``settings.vector_db_type``."),
     )
     capabilities: VectorBackendCapabilities = Field(
         ...,
