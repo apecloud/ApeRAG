@@ -246,7 +246,8 @@ PM @不穷 推进节奏。
 
 **企业独占** (候选, 待 earayu2 + 法务确认):
 - License 管理 / Edition gate
-- SSO / 高级权限管理 / audit log
+- SSO / 高级权限管理
+- **高级审计 / 合规报表 / 审计日志导出** (现有 `aperag/domains/governance/AuditLog` 是开源版基础能力, 企业版只增强: 高级审计 dashboard / 合规报表 / 长期归档 / 审计导出 — per dongdong msg=4d773716 cite 修正, 防误读现有 OSS audit log 被移走)
 - 客户定制 connectors (specific customer integrations)
 - 私有部署高级配置 (HA / 多 region / 混合云)
 - 企业 dashboard (cost / token / SLA UI)
