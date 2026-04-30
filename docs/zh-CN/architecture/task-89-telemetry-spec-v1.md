@@ -285,8 +285,25 @@ class GraphModalityWorker:
                     wall_time_ms=int(time.monotonic() * 1000) - doc_stats.wall_time_start_ms,
                 ).model_dump(),
             )
-        except Exception:
-            logger.exception("telemetry emit failed (best-effort drop)")
+            except Exception:
+                logger.exception("telemetry emit failed (best-effort drop)")
+```
+
+**Final summary status logic** (per Weston msg=513b1444 BLOCKER 2 + huangzhangshu msg=8cbaaa85 BLOCKER 2):
+
+```python
+# Inside outer finally — derive summary status from doc_status (set by outer except),
+# NOT just from windows_failed/windows_timeout counters. Non-window exceptions
+# (setup / store / unknown) keep counters=0 但 doc_status='failed', summary
+# 必须 emit failed 不 emit silent success.
+summary_status = (
+    'failed'
+    if doc_status == 'failed' or doc_stats.windows_failed > 0 or doc_stats.windows_timeout > 0
+    else 'success'
+)
+# X4 boundary gate 加 non-window/fail-before-window case 钉死:
+# raise BeforeWindowLoopError() 在 setup/store 阶段 → summary status 必 'failed'
+# (counters 0 时 doc_status='failed' 路径 cover)
 ```
 
 #### 3.1.3 Layer 2 — Ingestion (async batched flush + fail-safe)
@@ -345,7 +362,10 @@ P0 验收 = SQL/query + tests (per Weston msg=22e6df03), NO admin UI / metrics e
 #### 3.1.5 Layer 4 — Boundary tests (Lesson #18 mechanical gate codification)
 
 `tests/boundaries/`:
-- `test_telemetry_attrs_privacy_ast_gate.py`: AST scan `aperag/telemetry/**` + `aperag/indexing/**` 全文 (NOT only producer files, per huangzhangshu msg=171acb55) 不含 forbidden read 进 attrs payload — `chunk_text` / `chunk_content` / `query_text` / `entity_description` / `prompt_text` / `completion_text` / `error_message` / `traceback` / `repr(exc)` zero match
+- `test_telemetry_attrs_privacy_ast_gate.py`: AST data-flow scan (per Weston msg=513b1444 BLOCKER 1 + huangzhangshu msg=8cbaaa85 BLOCKER 1 — **NOT 全文 grep zero match**, 防误伤 fulltext/vision/summary/parser/extractor 合法读 text):
+  - **scan 范围**: `aperag/telemetry/**` (全文 telemetry module 自身) + producer call sites function body (`graph_extractor._extract_one_window` + `worker_factory._build_graph_facts_worker` + `GraphModalityWorker.sync`)
+  - **失败条件**: forbidden field (chunk_text / chunk_content / query_text / entity_description / prompt_text / completion_text / error_message / traceback / repr(exc)) flow INTO `telemetry_emit(attrs=...)` / `WindowExtractionAttrs(...)` / `DocumentExtractionAttrs(...)` keyword 参数 OR `TelemetryEvent.attrs` 赋值 (`.attrs = ...` / `.attrs[k] = v` / `.attrs.update(...)`)
+  - **allowlist**: Pydantic Field-typed schema typed payload only (no untyped dict.update)
 - `test_telemetry_failed_event_redaction.py`: failed event `attrs` 不含 `error_message` / `traceback` field (per huangzhangshu msg=171acb55), 仅 `error_type: str` whitelist enum
 - `test_telemetry_disable_env_gate.py`: `DISABLE_TELEMETRY=true` 时 `telemetry_emit` no-op + buffer never starts
 - `test_telemetry_fail_safe_does_not_propagate_to_indexing_state.py`: telemetry flush exception not raise into indexing worker task state (Class 2 fail-safe)
@@ -426,7 +446,10 @@ P1 task X6/X7/X8 等 P0 production data ≥ 1 周后 PM + earayu2 决策启动�
 ### 5.2 boundary test gate（CI must pass）
 
 - 现有 G1-G19 + telemetry boundary 7 test 不破坏
-- privacy AST gate scan 范围: `aperag/telemetry/**` (全文) + `aperag/indexing/**` (producer call sites) 全文 grep zero match forbidden read
+- privacy AST gate (per Weston BLOCKER 1 + huangzhangshu BLOCKER 1 修订 — **data-flow gate NOT 全文 grep**):
+  - scan 范围: `aperag/telemetry/**` 全文 + producer function body (`_extract_one_window` + `worker_factory._build_graph_facts_worker` + `GraphModalityWorker.sync`)
+  - 失败条件: forbidden field flow INTO `telemetry_emit(attrs=...)` / Pydantic typed `WindowExtractionAttrs` / `DocumentExtractionAttrs` keyword 参数 OR `TelemetryEvent.attrs` 赋值 — 不影响 fulltext/vision/summary/parser/extractor 合法读 chunk text 抽取实体路径
+  - allowlist: Pydantic Field-typed schema typed payload only
 - DISABLE_TELEMETRY env 默认 false, set true 时 producer no-op + buffer never starts assertion
 - fail-safe Class 1+2 separately tested
 - chunk_ids cardinality cap 128 truncate + flag set
