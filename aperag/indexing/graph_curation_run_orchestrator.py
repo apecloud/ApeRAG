@@ -53,7 +53,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Mapping, MutableMapping
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
 
 from aperag.indexing.orchestrator import WorkQueue
 
@@ -112,6 +112,70 @@ class GraphCurationRunOrchestratorConfig:
     poll_timeout_seconds: float = DEFAULT_POLL_TIMEOUT_SECONDS
 
 
+def _mark_run_failed_best_effort(
+    *,
+    engine: Engine,
+    run_id: str,
+    error_message: str,
+) -> None:
+    """Best-effort fail-safe — mark the run FAILED only when the row is
+    still in a transient state.
+
+    Per Weston PR #1938 CR (msg=04c9e5ee BLOCKER): the worker catch
+    layer must NOT trust that
+    ``generate_graph_curation_run_task`` already persisted FAILED.
+    There are at least three pre-``generate_run`` raise sites that
+    bypass the service-layer ``_mark_run_failed``:
+
+    * ``aperag/graph_curation/integration.py:35-37`` — collection not
+      found.
+    * ``aperag/graph_curation/integration.py:49-61`` — backend /
+      vector / embedder resolution failure.
+    * ``aperag/domains/knowledge_graph/tasks.py:17-26`` — log + re-raise
+      without marking FAILED.
+
+    Without this fail-safe, any of those raises would leave the run in
+    ``PENDING``; the queue payload was already popped, so the next
+    ``start_run`` call sees an "active" run and returns
+    ``created=False`` without re-enqueueing — the collection's manual
+    full sweep is permanently stuck.
+
+    The ``WHERE status IN ('PENDING', 'RUNNING')`` predicate keeps
+    this update from clobbering a FAILED / COMPLETED row that
+    ``generate_run`` already wrote — only stuck-in-transit runs get
+    rewritten. Truncated to fit the typical Postgres ``Text`` field
+    expectation; a more detailed traceback is in the worker log.
+
+    Errors here are swallowed — the loop must keep consuming
+    subsequent payloads even if PG is briefly unavailable.
+    """
+
+    # Sync DB — runs inside an ``asyncio.to_thread`` block on the
+    # caller side so the loop stays responsive.
+    truncated = error_message[:1024]
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE graph_curation_runs
+                    SET status = 'FAILED',
+                        error_message = :error_message,
+                        gmt_updated = now()
+                    WHERE id = :run_id
+                      AND status IN ('PENDING', 'RUNNING')
+                    """
+                ),
+                {"run_id": run_id, "error_message": truncated},
+            )
+    except Exception:
+        logger.exception(
+            "graph-curation-run worker: best-effort mark-FAILED failed for run %s; "
+            "will not retry inside the catch path",
+            run_id,
+        )
+
+
 async def _process_one_run(
     *,
     engine: Engine,
@@ -126,6 +190,10 @@ async def _process_one_run(
     the asyncio event loop stays free. The worker re-loads the
     ``GraphCurationRun`` row from PG on entry, so any state changes
     that happened between enqueue and pop are picked up.
+
+    On failure: catch + best-effort mark-FAILED so a stuck-in-transit
+    run can never wedge the start_run "active run" dedup logic. See
+    :func:`_mark_run_failed_best_effort` for the rationale.
     """
 
     # Lazy import — avoids pulling the LLM completion stack into the
@@ -140,16 +208,24 @@ async def _process_one_run(
             payload.run_id,
             payload.collection_id,
         )
-    except Exception:
-        # Task-level failures are recorded by ``generate_graph_curation_run_task``
-        # itself (it marks the run FAILED in PG before raising). Logging
-        # at this level so the operator sees the worker did pop and
-        # dispatch even when the run itself errored.
+    except Exception as exc:
+        # Task-level failures may or may not have been recorded — see
+        # the docstring on ``_mark_run_failed_best_effort``. The
+        # ``WHERE status IN ('PENDING', 'RUNNING')`` predicate makes
+        # this update idempotent w.r.t. ``generate_run`` having
+        # already written FAILED inside its own try/except.
         logger.exception(
-            "graph-curation-run worker: run %s (collection %s) raised; task-level failure already persisted in PG",
+            "graph-curation-run worker: run %s (collection %s) raised; applying best-effort mark-FAILED fallback",
             payload.run_id,
             payload.collection_id,
         )
+        if engine is not None:
+            await asyncio.to_thread(
+                _mark_run_failed_best_effort,
+                engine=engine,
+                run_id=payload.run_id,
+                error_message=f"worker_unhandled: {type(exc).__name__}: {exc}",
+            )
 
 
 async def run_graph_curation_run_worker_loop(

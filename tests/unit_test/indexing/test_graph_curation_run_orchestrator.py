@@ -234,12 +234,24 @@ async def test_worker_loop_drops_malformed_payload_without_crashing():
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_swallows_task_exception():
+async def test_worker_loop_swallows_task_exception_and_marks_failed():
     """A raise inside ``generate_graph_curation_run_task`` must not
-    crash the loop — the integration path is responsible for marking
-    the run FAILED in PG before raising; the worker logs and moves
-    on. Pinned because a propagating exception would halt the whole
-    indexing-worker process."""
+    crash the loop AND the worker must apply a best-effort mark-FAILED
+    fallback so the run row can't wedge the ``start_run`` "active run"
+    dedup logic.
+
+    Pinned by Weston PR #1938 CR msg=04c9e5ee BLOCKER. The pre-fix
+    behaviour assumed ``generate_graph_curation_run_task`` had already
+    marked the run FAILED before raising — but several pre-``generate_run``
+    raise sites (``integration.py:35-37`` collection-not-found,
+    ``integration.py:49-61`` backend resolution failure,
+    ``tasks.py:17-26`` log + re-raise) bypass the service-layer
+    ``_mark_run_failed``. Without the worker-side fail-safe the run
+    stayed in PENDING, the queue payload was already popped, and
+    subsequent ``start_run`` calls returned ``created=False`` without
+    re-enqueueing — the collection's manual full sweep was permanently
+    stuck.
+    """
     queue = InMemoryWorkQueue()
     await queue.push_graph_curation_run(payload={"run_id": "r1", "collection_id": "c1"})
     await queue.push_graph_curation_run(payload={"run_id": "r2", "collection_id": "c2"})
@@ -249,19 +261,36 @@ async def test_worker_loop_swallows_task_exception():
     def _fake_task(run_id: str, collection_id: str) -> None:
         seen.append(run_id)
         if run_id == "r1":
-            raise RuntimeError("simulated task failure")
+            raise RuntimeError("simulated pre-generate_run failure")
+
+    # Capture every call to the worker-side mark-FAILED fail-safe.
+    failed_marks: list[dict] = []
+
+    def _capture_mark_failed(*, engine, run_id, error_message) -> None:
+        failed_marks.append({"run_id": run_id, "error_message": error_message})
 
     shutdown = asyncio.Event()
     config = GraphCurationRunOrchestratorConfig(concurrency=1, poll_timeout_seconds=0.05)
 
-    with patch(
-        "aperag.domains.knowledge_graph.tasks.generate_graph_curation_run_task",
-        new=_fake_task,
+    # Pass a non-None engine sentinel — the actual engine is patched
+    # away via ``_mark_run_failed_best_effort`` so the test doesn't
+    # need a real DB.
+    sentinel_engine = object()
+
+    with (
+        patch(
+            "aperag.domains.knowledge_graph.tasks.generate_graph_curation_run_task",
+            new=_fake_task,
+        ),
+        patch(
+            "aperag.indexing.graph_curation_run_orchestrator._mark_run_failed_best_effort",
+            new=_capture_mark_failed,
+        ),
     ):
         loop_task = asyncio.create_task(
             run_graph_curation_run_worker_loop(
                 config=config,
-                engine=None,
+                engine=sentinel_engine,
                 queue=queue,
                 shutdown=shutdown,
             )
@@ -273,9 +302,80 @@ async def test_worker_loop_swallows_task_exception():
         shutdown.set()
         await asyncio.wait_for(loop_task, timeout=2.0)
 
+    # The loop continued past the failure to process the next payload.
     assert seen == ["r1", "r2"], (
         "Worker loop did not continue past a task failure — first raise "
         "halted the loop, leaving subsequent runs stranded"
+    )
+    # The fail-safe was invoked exactly once (only r1 raised), and
+    # carried the original exception type + message in the reason.
+    assert len(failed_marks) == 1
+    assert failed_marks[0]["run_id"] == "r1"
+    reason = failed_marks[0]["error_message"]
+    assert "worker_unhandled" in reason
+    assert "RuntimeError" in reason
+    assert "simulated pre-generate_run failure" in reason
+
+
+def test_mark_run_failed_best_effort_only_updates_pending_or_running():
+    """Pinned by Weston msg=04c9e5ee BLOCKER fix: the fail-safe MUST
+    NOT clobber a row that ``generate_run`` already wrote FAILED /
+    COMPLETED — the WHERE clause restricts to ``status IN ('PENDING',
+    'RUNNING')`` so an in-transit row is reset and a finalised row is
+    preserved.
+
+    This unit test stubs ``engine.begin`` to capture the SQL +
+    parameters that would be issued.
+    """
+    from contextlib import contextmanager
+
+    from aperag.indexing.graph_curation_run_orchestrator import _mark_run_failed_best_effort
+
+    captured: list[tuple[str, dict]] = []
+
+    class _FakeConn:
+        def execute(self, sql, params):
+            # ``sql`` is a SQLAlchemy ``TextClause`` — extract the
+            # underlying string for assertion.
+            captured.append((str(sql), dict(params)))
+
+    class _FakeEngine:
+        @contextmanager
+        def begin(self):
+            yield _FakeConn()
+
+    _mark_run_failed_best_effort(
+        engine=_FakeEngine(),
+        run_id="run-x",
+        error_message="boom" * 500,  # > 1024 to verify truncation
+    )
+
+    assert len(captured) == 1
+    sql, params = captured[0]
+    assert "UPDATE graph_curation_runs" in sql
+    assert "status = 'FAILED'" in sql
+    # The PENDING/RUNNING guard MUST be present — otherwise the
+    # fail-safe would clobber rows ``generate_run`` already finalised.
+    assert "status IN ('PENDING', 'RUNNING')" in sql
+    assert params["run_id"] == "run-x"
+    # The error message is truncated to a sane size.
+    assert len(params["error_message"]) <= 1024
+
+
+def test_mark_run_failed_best_effort_swallows_db_errors():
+    """If PG is briefly unavailable the fail-safe must NOT propagate —
+    the worker loop has to keep popping subsequent payloads."""
+    from aperag.indexing.graph_curation_run_orchestrator import _mark_run_failed_best_effort
+
+    class _BrokenEngine:
+        def begin(self):
+            raise OSError("simulated PG outage")
+
+    # Must not raise.
+    _mark_run_failed_best_effort(
+        engine=_BrokenEngine(),
+        run_id="run-x",
+        error_message="any reason",
     )
 
 
