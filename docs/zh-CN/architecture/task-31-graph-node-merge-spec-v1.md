@@ -9,12 +9,25 @@ description: ApeRAG graph 重复/近似实体检测 + 异步 suggestion 任务 +
 
 ## 1. 现状 inventory（grep 实证）
 
-### 1.1 现有 entity dedup / merge 路径
+### 1.1 现有 entity dedup / merge 路径（per Bryce msg=74f33e19 BLOCKER reframe — Wave 7 §K.12.4 全栈已存在）
 
-`aperag/graph_curation/`:
-- `service.py` 已有 `merge_entities()` API（用户面 / agent 触发 manual merge）
-- `alias_map.py` `resolve_canonical()` per-query alias resolution（**Planetegg msg=db7fb085** + Singapore 实证 P2-S1：per-node `asyncio.gather` 在 PG 连接池吃紧时放大压力）
-- 无 **后台异步 dedup scan / suggestion** 路径 — 当前 dedup 全靠 (a) 提取阶段 prompt v2 dedup（Bryce A3 hard requirement #4）+ (b) merge_entities manual API
+⚠️ **关键 reframe**：spec 不是「build new」，是「extract sync-inline + fix Wave 5 description-NULL violation + add 三 trigger strategy」。Wave 7 §K.12.4 task #4 **detector + suggestion store + scoring 全栈已存在**:
+
+- `aperag/indexing/merge_candidate_detector.py` — Wave 7 §K.12.4 task #4 detector (Wave 7 task #3 已 wired 进 `GraphModalityWorker.sync` end-of-sync)
+- `aperag/domains/knowledge_graph/db/models.py:107` — `GraphCurationSuggestion` table + `GraphCurationSuggestionStatus` enum (`PENDING/ACCEPTED/REJECTED/DISMISSED` 已就位)
+- `aperag/graph_curation/candidate_generation.py` — `build_candidate_pairs()` 算法 (vector ANN + name/type/description signal scoring)
+- `aperag/graph_curation/dto.py::CurationEntity` — entity wrapper
+- `MergeCandidateDetector.AUTO_DETECT_SOURCE = "auto_detect"` discriminator on `GraphCurationRun.config_json["source"]` — admin UI split 已设计完成 (per K.12.4 amend2 ratify msg=6ab89fbb)
+- `DEFAULT_VECTOR_TOP_K = 4` + `DEFAULT_VECTOR_SCORE_THRESHOLD = 0.72` (Bryce PR #1930 commit `873a7541` 已 docstring annotated 是 cosine-tuned `[0, 1]` normalized scale)
+- `aperag/graph_curation/service.py` `merge_entities()` API（用户面 / agent 触发 manual merge）
+- `aperag/graph_curation/alias_map.py` `resolve_canonical()` per-query alias resolution（**Planetegg msg=db7fb085** + Singapore 实证 P2-S1：per-node `asyncio.gather` PG 连接池吃紧放大压力）
+
+**当前 gap**（task #31 真 scope）:
+1. 跑在 `GraphModalityWorker.sync` end-of-sync（**API 进程或 sync graph_facts/graph_vectors lane 内联**）— 违反 task #17 hard cut + task-system-invariants § 2.3 hard gate
+2. `candidate_generation.py:43/179-181/196-197` 三处读 / scoring weight `description` — 违反 Wave 5 description-NULL invariant
+3. `merge_entities` apply 路径 (`lineage_merge.py`) 调 LLM unified description / 写 vector — 违反 Wave 5 invariant (per huangzhangshu msg=c9f81309 BLOCKER 1)
+4. 仅 1 trigger strategy（post-sync 自动）— 缺 cron / manual / auto_post_ingest 三策略 collection-level 配置
+5. status enum 缺 apply/applying/failed 语义（per huangzhangshu msg=c9f81309 BLOCKER 2）— 测试无法区分用户决策 vs worker 应用 vs 失败
 
 ### 1.2 现有 background task 路径
 
@@ -31,14 +44,15 @@ description: ApeRAG graph 重复/近似实体检测 + 异步 suggestion 任务 +
 
 `aperag/indexing/graph_extractor.py`（task #30 A3 prompt v2）已移除 description regeneration（Wave 5 task #5 facts/vectors split 后老 graph 失败 FAILED 行直接归一化删除，新 entity record 不再写 description — per `task-30-graph-chunk-window-spec-v1.md` § 4.5 invariant）— 节点合并 suggestion 必须 **基于 entity name / type / source_chunk_ids 跨 doc 共享性，不依赖 description 文本相似度**（description 字段 NULL）。
 
-### 1.5 graph store contract（task #61 close 锁定）
+### 1.5 graph store contract（task #61 close 锁定，per Weston msg=2b441dc2 NIT 修订）
 
 `aperag/indexing/graph_storage/{neo4j,nebula,postgres}.py` 跨 3 backend `LineageGraphStore` Protocol contract 已 task #61 P0/P1 锁定:
 - `bulk_upsert_entity_with_lineage_parts` cross-backend boundary test 38 cases (PR #1927 `9c94cbc1`)
-- `merge_entities` 行为契约 task #64 ziang audit slice 输出 (任何 merge 必须 atomic + replay idempotent + zero-side-effect on raise)
 - alias / source_chunk_ids list-typed schema (task #61 spec § 1.2 + Wave 5 multi-chunk provenance)
 
-task #31 不引入新 graph store method — 复用 task #61 locked contract。
+⚠️ **修正引用**（per Weston msg=2b441dc2 NIT）：`LineageGraphStore` Protocol **不含** `merge_entities` 方法 — 现有 `aperag/graph_curation/lineage_merge.py::LineageEntityMerger` (合并 entity + 写 lineage) + `aperag/graph_curation/service.py::GraphCurationService` (orchestrator) 使用 `LineageGraphStore` primitives 实现 merge。task #31 复用这两层但需要 description-free variant (per § 3.1.5)。
+
+task #31 不引入新 graph store method — 复用 task #61 locked contract + LineageEntityMerger / GraphCurationService primitive 复用。
 
 ## 2. 缺口识别（按 severity）
 
@@ -81,11 +95,21 @@ task #31 不引入新 graph store method — 复用 task #61 locked contract。
 - API 进程 **不直接调用 dedup scan**（per `task-system-invariants` § 2.3 hard gate）— API 仅入队 + 读 suggestion store
 - boundary test：`tests/boundaries/test_indexing_worker_lanes.py` 加钉「11th lane `graph_node_merge_suggestion` 必启动」
 
-#### 3.1.2 suggestion store + reviewable workflow（per Weston msg=d0e00405 边界 3）
+#### 3.1.2 suggestion store + reviewable workflow（per Weston msg=d0e00405 边界 3 + dongdong msg=11813333 BLOCKER read contract fold）
 
 - 新 PG table `merge_suggestion`（schema § 2.2 P1-31-B）
 - background task **只写 suggestion**（pending status）— 不调 `merge_entities()` apply
-- 用户面 review API：`POST /api/v2/collections/{id}/merge-suggestions/{suggestion_id}/accept|reject|dismiss` — accept 时调 `merge_entities()` apply（async via worker），reject/dismiss 仅改 status
+- **read API**（per dongdong msg=11813333 BLOCKER + cuiwenbo msg=61800dd6 NIT 1 + dongdong msg=c4d3ae32 收窄 — **复用 FE 现有 endpoint 不另起 path**）：
+  - **复用** `GET /api/v2/collections/{id}/graphs/merge-suggestions?status=pending&limit=&cursor=` — list 分页 + status filter，跟 FE `client-api.ts:302` 现有 caller align（不破 typed schema）
+  - **复用** `GET /api/v2/collections/{id}/graphs/merge-suggestions/{suggestion_id}` — detail full record
+  - typed schema 扩展现有 `MergeSuggestionItem` (`web/src/features/knowledge-graph/types.ts:80`) 为 `MergeSuggestionView` display-ready shape：`id` + `collection_id` + `suggestion_batch_id` + `candidate_entity_ids` + `confidence_score` + `merge_reason` + `suggested_target_entity` + `evidence_refs[].document_id/chunk_id/parse_version`（per task #61 evidence_refs 模式新加）+ `affected_doc_count` + `created_at` + `status` + `reviewer_user_id` + `reviewed_at`（FE 现有 `operated_at` rename）
+- **action API**（**复用** FE 现有 endpoint per cuiwenbo msg=61800dd6 NIT 1 + dongdong msg=c4d3ae32）：
+  - **复用** `POST /api/v2/collections/{id}/graphs/merge-suggestions/{suggestion_id}/action` body `{action: 'accept'|'reject'|'dismiss'}` — 不引入新 path 避免 typed schema 破坏 + FE 三处 caller (`client-api.ts:329`) 重写
+  - accept 时 enqueue worker → status `pending → accepted → applying → applied | apply_failed`（per § 3.1.6 状态机）
+  - reject/dismiss 仅改 status `pending → rejected | dismissed`，不 enqueue worker
+  - 返回 updated `MergeSuggestionView`（不要 204 + refetch）
+  - `SUGGESTION_ACTIONS` const FE 同步扩展 `dismiss` (FE 现有仅 `accept` | `reject`)
+- UI 状态机 contract：pending / accepted / rejected / dismissed 四态 + 空态 + 错误态 + 已处理态 typed schema 显式（per task #61 backend 收敛 contract pattern）— FE 仅消费不基于 backend 类型分支
 - review audit trail：accept 调用记录 `reviewer_user_id` + `reviewed_at`，可回滚（rollback API 仅 admin role）
 - AlembicMigration 加 `merge_suggestion` table（chain 在 latest head 后）
 
@@ -108,13 +132,43 @@ dedup detection 输入仅:
 
 不引入新 graph store method — 全 reuse。
 
+#### 3.1.5 accept apply 路径必须 description-free（per huangzhangshu msg=c9f81309 BLOCKER 1）
+
+⚠️ **关键 invariant**：现有 `aperag/graph_curation/lineage_merge.py` apply 路径会 LLM unified description + compactor + 写 `__curation_merge__` description part + 用 unified description 写 vector — **违反 Wave 5 description-NULL hard invariant**。
+
+修法（Phase A1 / A3 实施前置 refactor）:
+- 抽 `merge_entities_apply_description_free()` variant 走 `LineageGraphStore.merge_entities()` 直接合并 entity 但**不调 LLM**、不写 unified description / compactor part / description vector
+- accept worker 仅调 description-free variant — 老 `lineage_merge.py` 路径保留作 manual API 兼容（标 deprecation Lesson #14 multi-iteration cleanup follow-up）
+- boundary test 钉死「accept worker 实施不调 description regen / vector regen」 + grep gate 钉「`graph_node_merge_suggestion` lane 模块 import allowlist 不含 `lineage_merge.unified_description` 类 LLM helper」
+
+#### 3.1.6 apply 状态机（per huangzhangshu msg=c9f81309 BLOCKER 2）
+
+`MergeSuggestion.status` enum 扩展为完整状态机（区分用户决策 vs worker 应用 vs 失败）:
+
+| status | 转移条件 |
+| --- | --- |
+| `pending` | scan 写入新 suggestion |
+| `dismissed` | 用户 dismiss action（不 enqueue worker） |
+| `rejected` | 用户 reject action（不 enqueue worker） |
+| `accepted` | 用户 accept action — enqueue worker |
+| `applying` | worker 拿到 task 开始 apply |
+| `applied` | worker 成功 apply graph + audit trail 写入 |
+| `apply_failed` | worker apply 失败（保留 retry，retry 次数 cap） |
+
+跟 cuiwenbo msg=61800dd6 NIT 2 FE 现有 enum (`PENDING/ACCEPTED/REJECTED/EXPIRED`) align 选择：
+- spec lock **lowercase** + 新加 `dismissed/applying/applied/apply_failed` 4 enum value
+- FE typed schema 同步扩展 `MergeSuggestionStatus` (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat 历史 placeholder，新代码不再写入)
+- Migration chain 时序：PG enum 加 4 新 value（`alembic upgrade head` 跨 backend 跑过）
+
+测试可区分「用户已批准」「worker 已应用」「应用失败待重试」三状态。
+
 ### 3.2 P1 实施（capability matrix declaration）
 
-per § 2.2 三 strategy + 算法 capability matrix collection-level config:
-- `kg.merge_suggestion_strategy: ['cron', 'manual', 'auto_post_ingest']`（list）
-- `kg.merge_suggestion_algorithms: ['name_exact', 'name_fuzzy', 'type_compatible', 'embedding_topk', 'source_chunk_overlap']`（list，可启用任意子集）
-- `kg.merge_suggestion_score_threshold: float`（默认 0.85，suggestion 入 store 阈值）
-- `kg.merge_suggestion_max_per_scan: int`（默认 100，单次 scan 上限防 PG 连接放大 per § 2.3 P2-31-A）
+per § 2.2 三 strategy + 算法 capability matrix collection-level config（**配置 schema path lock**，per dongdong msg=11813333 NIT 1 + 跟 task #30 / task #61 既有 schema path 对齐：`collection.config.knowledge_graph_config.merge_suggestion_*` — `kg.*` 仅 spec 内文 shorthand）:
+- `merge_suggestion_strategy: list[Literal['cron', 'manual', 'auto_post_ingest']]`
+- `merge_suggestion_algorithms: list[Literal['name_exact', 'name_fuzzy', 'type_compatible', 'embedding_topk', 'source_chunk_overlap']]`（可启用任意子集）
+- `merge_suggestion_score_threshold: Optional[float]`（默认 0.85，suggestion 入 store 阈值，**初始 default = 0.85**, Phase C benchmark 后 lock per task #30 B3 sweet spot pattern）
+- `merge_suggestion_max_per_scan: Optional[int]`（默认 100，单次 scan 上限防 PG 连接放大 per § 2.3 P2-31-A）
 
 ### 3.3 不做（YAGNI per § 2.4）
 
