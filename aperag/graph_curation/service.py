@@ -112,17 +112,44 @@ class GraphCurationService(AsyncBaseRepository):
         run, created = await self.execute_with_transaction(_op)
 
         if created:
-            # Wave 3 T3.1 chunk 2: Pattern C fire-and-forget — formerly
-            # ``generate_graph_curation_run_task.delay(...)`` Celery enqueue.
-            import asyncio
+            # task #31 Phase A1 (per spec § 3.1.1 + ziang msg=92321bcc +
+            # Bryce msg=4c23f87e BLOCKER 1): API process MUST NOT
+            # execute the merge sweep itself — this used to be a
+            # ``asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task, ...))``
+            # fire-and-forget which violated task #17 hard-cut +
+            # task-system-invariants § 2.3 ("API doesn't own heavy
+            # execution"). Post-A1 it's a thin enqueue onto the
+            # independent ``q:graph_curation_run`` Redis queue; the
+            # actual sweep runs in the indexing-worker process via
+            # ``run_graph_curation_run_worker``.
+            from aperag.indexing.runtime import get_runtime
 
-            from aperag.domains.knowledge_graph.tasks import generate_graph_curation_run_task
+            runtime = get_runtime()
+            if runtime is None or runtime.queue is None:
+                # No runtime / queue installed (test environment, sync-
+                # only mode, or pre-startup boot sequence). Mark the
+                # run failed so the caller doesn't see a "started"
+                # response that never executes — better fail-loud than
+                # silent "PENDING forever" (per service.py existing
+                # ``_mark_run_failed`` discipline).
+                logger.error(
+                    "graph curation: indexing runtime / queue not installed; cannot enqueue run %s for collection %s",
+                    run.id,
+                    collection_id,
+                )
+                await self._mark_run_failed(run.id, "enqueue_failed: runtime not installed")
+                raise RuntimeError("Failed to schedule graph curation run: runtime not installed")
 
             try:
-                asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task, run.id, collection_id))
+                await runtime.queue.push_graph_curation_run(
+                    payload={
+                        "run_id": str(run.id),
+                        "collection_id": str(collection_id),
+                    }
+                )
             except Exception as exc:
                 logger.exception(
-                    "graph curation: failed to schedule run %s for collection %s",
+                    "graph curation: failed to enqueue run %s for collection %s",
                     run.id,
                     collection_id,
                 )

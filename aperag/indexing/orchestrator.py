@@ -110,7 +110,7 @@ class WorkQueue(Protocol):
     ``BLPOP`` dequeue keyed by ``q:<modality>``). Tests inject
     :class:`InMemoryWorkQueue` for synchronous deterministic dispatch.
 
-    The protocol covers two queue families:
+    The protocol covers three queue families:
 
     * **Per-modality queues** (``push`` / ``pop``) — keyed by
       :class:`Modality`. The 5 modality worker pools (vector / fulltext
@@ -124,6 +124,17 @@ class WorkQueue(Protocol):
       blocking on a 30s+ DocParser run; the parse worker pops, parses,
       and then fans out to the per-modality queues. Backed by a Redis
       list named ``q:parse``.
+
+    * **Graph curation run queue** (``push_graph_curation_run`` /
+      ``pop_graph_curation_run``) — un-keyed single queue feeding the
+      graph node merge suggestion worker (task #31 Phase A1, per spec
+      `task-31-graph-node-merge-spec-v1.md` § 3.1.1). Independent
+      queue family on purpose: ``GraphCurationRun`` is a
+      per-collection / per-run job, **not** a per-document
+      :class:`Modality` state — strapping it onto the modality keyed
+      queue would pollute ``DocumentIndex`` / reconciler / index_state
+      semantics. Backed by a Redis list named ``q:graph_curation_run``,
+      independent from ``q:indexing:<modality>``.
     """
 
     async def pop(self, *, modality: Modality, timeout_seconds: float) -> dict[str, Any] | None:
@@ -151,6 +162,30 @@ class WorkQueue(Protocol):
         ``None`` on timeout.
         """
 
+    async def push_graph_curation_run(self, *, payload: Mapping[str, Any]) -> None:
+        """Enqueue a graph curation run onto ``q:graph_curation_run``
+        (task #31 Phase A1).
+
+        Called from ``GraphCurationService.start_run`` (API process,
+        msg ``service.py:114-123`` pre-A1 used
+        ``asyncio.create_task(asyncio.to_thread(...))`` which violated
+        the task #17 hard-cut "API doesn't own heavy execution" gate;
+        post-A1 it's a thin enqueue and the execution moves to the
+        worker process). Payload shape is up to the caller — the
+        worker reads ``run_id`` and ``collection_id`` and re-resolves
+        the rest from PostgreSQL, so the queue carries the minimum
+        idempotency key.
+        """
+
+    async def pop_graph_curation_run(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        """Block up to ``timeout_seconds`` for the next graph curation
+        run payload (task #31 Phase A1).
+
+        Consumed by the graph curation run worker (`run_graph_curation_run_worker`)
+        in ``aperag.cli.indexing_worker``. Returns the deserialised
+        payload dict, or ``None`` on timeout.
+        """
+
 
 class InMemoryWorkQueue:
     """Process-local asyncio queue mirror of the :class:`WorkQueue` protocol.
@@ -163,6 +198,12 @@ class InMemoryWorkQueue:
     def __init__(self) -> None:
         self._queues: dict[Modality, asyncio.Queue[dict[str, Any]]] = {}
         self._parse_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        # task #31 Phase A1: independent queue for graph curation runs.
+        # Per-collection / per-run job, not per-document modality, so it
+        # does not share the per-modality queue family — keeping it
+        # separate prevents ``DocumentIndex`` / reconciler / index_state
+        # contamination.
+        self._graph_curation_run_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
     def _q(self, modality: Modality) -> asyncio.Queue[dict[str, Any]]:
         if modality not in self._queues:
@@ -187,6 +228,15 @@ class InMemoryWorkQueue:
         except asyncio.TimeoutError:
             return None
 
+    async def push_graph_curation_run(self, *, payload: Mapping[str, Any]) -> None:
+        await self._graph_curation_run_queue.put(dict(payload))
+
+    async def pop_graph_curation_run(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        try:
+            return await asyncio.wait_for(self._graph_curation_run_queue.get(), timeout=timeout_seconds)
+        except asyncio.TimeoutError:
+            return None
+
     def qsize(self, modality: Modality) -> int:
         if modality not in self._queues:
             return 0
@@ -194,6 +244,9 @@ class InMemoryWorkQueue:
 
     def parse_qsize(self) -> int:
         return self._parse_queue.qsize()
+
+    def graph_curation_run_qsize(self) -> int:
+        return self._graph_curation_run_queue.qsize()
 
 
 class RedisWorkQueue:
@@ -224,6 +277,15 @@ class RedisWorkQueue:
     #: Redis list key for the parse worker pool (Wave 4 T3 chunk 2).
     #: Matches the design pack §E.2 ASCII diagram (``q:parse``).
     PARSE_KEY = "q:parse"
+
+    #: Redis list key for the graph curation run worker pool (task #31
+    #: Phase A1, per spec ``task-31-graph-node-merge-spec-v1.md``
+    #: § 3.1.1). Independent queue family from
+    #: ``q:indexing:<modality>`` — graph curation runs are
+    #: per-collection / per-run jobs, not per-document
+    #: :class:`Modality` state, so they do not share the modality keyed
+    #: queue.
+    GRAPH_CURATION_RUN_KEY = "q:graph_curation_run"
 
     def __init__(self, redis_url: str) -> None:
         if not redis_url:
@@ -289,12 +351,39 @@ class RedisWorkQueue:
             )
             return None
 
+    async def push_graph_curation_run(self, *, payload: Mapping[str, Any]) -> None:
+        client = await self._get_client()
+        await client.rpush(self.GRAPH_CURATION_RUN_KEY, json.dumps(dict(payload)))
+
+    async def pop_graph_curation_run(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        client = await self._get_client()
+        timeout = max(1, int(timeout_seconds))
+        result = await client.blpop(self.GRAPH_CURATION_RUN_KEY, timeout=timeout)
+        if result is None:
+            return None
+        _key, raw = result
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "RedisWorkQueue.pop_graph_curation_run got non-JSON payload on key=%s: %s; dropping",
+                _key,
+                exc,
+            )
+            return None
+
     async def parse_qsize(self) -> int:
         """Inspector helper for the parse queue — current backlog length.
         Mirrors :meth:`qsize` for the per-modality queues.
         """
         client = await self._get_client()
         return int(await client.llen(self.PARSE_KEY))
+
+    async def graph_curation_run_qsize(self) -> int:
+        """Inspector helper for the graph curation run queue (task #31
+        Phase A1). Mirrors :meth:`parse_qsize` for the parse queue."""
+        client = await self._get_client()
+        return int(await client.llen(self.GRAPH_CURATION_RUN_KEY))
 
     async def qsize(self, modality: Modality) -> int:
         """Inspector helper — returns the current backlog length for
