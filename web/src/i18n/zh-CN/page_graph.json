@@ -45,7 +45,7 @@
   "merge_status_applying": "应用中",
   "merge_status_applied": "已应用",
   "merge_status_apply_failed": "应用失败",
-  "merge_status_accepted_legacy": "已接受",
+  "merge_status_accepted_legacy": "已应用 (历史)",
   "merge_status_rejected": "已拒绝",
   "merge_status_dismissed": "已忽略",
   "merge_status_expired": "已过期",

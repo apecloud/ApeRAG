@@ -987,7 +987,7 @@
     "merge_status_applying": "Applying",
     "merge_status_applied": "Applied",
     "merge_status_apply_failed": "Failed",
-    "merge_status_accepted_legacy": "Accepted",
+    "merge_status_accepted_legacy": "Applied (legacy)",
     "merge_status_rejected": "Rejected",
     "merge_status_dismissed": "Dismissed",
     "merge_status_expired": "Expired",
