@@ -82,8 +82,11 @@ Provider-aware local flow for a named deployment shape:
 export E2E_ALIBABACLOUD_API_KEY=...
 export E2E_OPENROUTER_API_KEY=...
 make test-http-full-compose-lite
+make test-http-full-compose-qdrant-postgres
 make test-http-full-compose-qdrant-nebula
 make test-http-full-compose-qdrant-neo4j
+make test-http-full-compose-pgvector-neo4j
+make test-http-full-compose-pgvector-nebula
 ```
 
 Typical local flow against a Kubernetes-backed environment:

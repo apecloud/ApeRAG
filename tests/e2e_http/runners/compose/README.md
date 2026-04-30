@@ -20,9 +20,12 @@ This runner is intentionally replaceable. The suite must remain runnable against
 ApeRAG supports several real production deployment forms — different choices of vector backend (Qdrant or pgvector) and graph backend (PostgreSQL, Neo4j, or Nebula). Each named combination is a *shape*.
 
 ```
-SHAPE=lite          ./tests/e2e_http/runners/compose/up.sh
-SHAPE=qdrant-neo4j  ./tests/e2e_http/runners/compose/up.sh
-SHAPE=qdrant-nebula ./tests/e2e_http/runners/compose/up.sh
+SHAPE=lite              ./tests/e2e_http/runners/compose/up.sh
+SHAPE=qdrant-postgres   ./tests/e2e_http/runners/compose/up.sh
+SHAPE=qdrant-neo4j      ./tests/e2e_http/runners/compose/up.sh
+SHAPE=qdrant-nebula     ./tests/e2e_http/runners/compose/up.sh
+SHAPE=pgvector-neo4j    ./tests/e2e_http/runners/compose/up.sh
+SHAPE=pgvector-nebula   ./tests/e2e_http/runners/compose/up.sh
 ```
 
 Each shape file under `tests/e2e_http/shapes/<shape>.env` declares:
@@ -41,8 +44,17 @@ Adding a new shape = adding one new file. The runner / Makefile / CI all referen
 Shapes are named `<vector>-<graph>`, with **lite** as the special name for the single-PG (pgvector + PG-graph) ApeRAG-Lite deployment:
 
 - **lite** — single-PG ApeRAG-Lite: pgvector + PG-graph, no qdrant/neo4j/nebula containers
+- **qdrant-postgres** — distributed vector, PG graph: Qdrant + PostgreSQL graph
 - **qdrant-neo4j** — distributed: Qdrant + Neo4j
 - **qdrant-nebula** — distributed: Qdrant + Nebula
+- **pgvector-neo4j** — mixed: pgvector + Neo4j
+- **pgvector-nebula** — mixed: pgvector + Nebula
+
+The six shapes cover the full 2 x 3 backend matrix: vector backend
+(`qdrant` / `pgvector`) crossed with graph backend (`postgresql` /
+`neo4j` / `nebula`). The extended mixed shapes run from manual or
+backend-surface-targeted CI workflows so everyday PRs keep the original
+lite + qdrant graph-backend signal cost.
 
 ### Backward compatibility
 
