@@ -842,7 +842,15 @@ class GraphCurationService(AsyncBaseRepository):
         flt = Eq("indexer", "graph_entity")
         out: dict[str, list[tuple[str, float]]] = {}
         for entity in entities:
-            text = entity.description or entity.name
+            # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5):
+            # ``CurationEntity.description`` is always ``""`` post Wave 5
+            # (see ``CurationEntity.from_lineage``); the legacy
+            # ``description or name`` fallback short-circuits to ``name``
+            # uniformly, so read the name directly. Mirrors the
+            # ``MergeCandidateDetector._embedding_query_text`` shape but
+            # this consumer pre-dates the helper and only needs a stable
+            # text input — name is sufficient.
+            text = entity.name
             if not text:
                 continue
             try:

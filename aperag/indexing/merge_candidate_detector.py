@@ -224,7 +224,7 @@ class MergeCandidateDetector(AsyncBaseRepository):
         return out
 
     async def _vector_neighbours_for(self, entity: EntityWithLineage) -> list[tuple[str, float]]:
-        text = self._description_text_for_scoring(entity)
+        text = self._embedding_query_text(entity)
         if not text:
             return []
         try:
@@ -260,15 +260,29 @@ class MergeCandidateDetector(AsyncBaseRepository):
         return out
 
     @staticmethod
-    def _description_text_for_scoring(entity: EntityWithLineage) -> str:
-        # Prefer ``compacted_description`` once task #1 lands; fall back
-        # to the raw concatenated parts so scoring still works on
-        # entities the compactor hasn't touched yet (or compactor was
-        # below threshold).
-        compacted = getattr(entity, "compacted_description", None)
-        if compacted:
-            return str(compacted)
-        return "\n\n".join(p.text for p in entity.description_parts if p.text)
+    def _embedding_query_text(entity: EntityWithLineage) -> str:
+        """Build the text used to query the entity vector index for
+        nearest-neighbour candidates.
+
+        Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5
+        item 5): the legacy implementation read
+        ``compacted_description`` / ``description_parts``; Wave 5
+        graph extractor no longer emits either, so that path always
+        returned ``""`` and short-circuited the vector search,
+        meaning ``MergeCandidateDetector`` silently produced zero
+        candidates after the Wave 5 cut-over. Replaced with an
+        ``entity name + entity_type`` query — the same signal the
+        graph_vectors worker embeds when it writes the entity vector
+        in the first place (per Wave 5 task #5 / #7), so the recall
+        side and the write side agree on input shape.
+        """
+        name = (entity.name or "").strip()
+        if not name:
+            return ""
+        entity_type = (entity.entity_type or "").strip()
+        if entity_type:
+            return f"{name} ({entity_type})"
+        return name
 
     def _to_legacy_entity(self, entity: EntityWithLineage) -> LegacyEntity:
         # ``build_candidate_pairs`` predates Wave 7 and consumes the
@@ -277,6 +291,13 @@ class MergeCandidateDetector(AsyncBaseRepository):
         # ``name`` doubles as ``entity_id`` because the lineage shape
         # uses name as the natural key (see
         # ``LineageGraphStore.get_entity(entity_name)``).
+        #
+        # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5
+        # item 5): pass ``description=""`` explicitly. Reading
+        # ``description_parts`` / ``compacted_description`` here would
+        # leak Wave-5-erased description residue into the dedup
+        # algorithm. ``CurationEntity.description`` field is preserved
+        # only for backward-compat (see ``CurationEntity`` docstring).
         chunk_ids: list[str] = []
         for member in entity.source_lineage:
             chunk_ids.extend(member.chunk_ids)
@@ -285,7 +306,7 @@ class MergeCandidateDetector(AsyncBaseRepository):
             collection_id=self._collection_id,
             name=entity.name,
             type=entity.entity_type,
-            description=self._description_text_for_scoring(entity),
+            description="",
             source_chunk_ids=tuple(chunk_ids),
         )
 
@@ -325,11 +346,19 @@ class MergeCandidateDetector(AsyncBaseRepository):
 
     @staticmethod
     def _snapshot(entity: EntityWithLineage) -> dict[str, Any]:
+        # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5
+        # item 6): suggestion ``entity_snapshots`` payload no longer
+        # carries ``description`` — Wave 5 graph extractor stopped
+        # emitting descriptions, so reading here would persist either
+        # an empty string (always) or a stale fragment (transient
+        # legacy rows) in the suggestion store. Reviewers + async
+        # accept-apply workers operate on name + type +
+        # source_chunk_count; mirrors
+        # :func:`aperag.graph_curation.candidate_generation.entity_snapshot`.
         return {
             "entity_id": entity.name,
             "entity_name": entity.name,
             "entity_type": entity.entity_type,
-            "description": MergeCandidateDetector._description_text_for_scoring(entity),
             "source_chunk_count": sum(len(member.chunk_ids) for member in entity.source_lineage),
         }
 

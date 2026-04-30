@@ -56,13 +56,17 @@ class CurationEntity:
     * ``name`` — same as legacy.
     * ``type`` — entity type / label. Pulled from
       ``EntityWithLineage.entity_type``.
-    * ``description`` — single-string view used by ``_pair_score`` for
-      Jaccard token overlap. Prefers
-      ``EntityWithLineage.compacted_description`` when populated by the
-      Wave 7 ``GraphIndexCompactor``, falling back to the joined
-      per-doc ``description_parts`` text so newly-extracted entities
-      that have not yet hit the compactor still produce a usable
-      similarity signal.
+    * ``description`` — preserved for backward-compat with the legacy
+      DTO shape; Wave 5 description-NULL invariant (task #31 A3, spec
+      § 3.1.5) means new dedup detection paths must NOT read this
+      field. ``from_lineage`` always sets it to ``""`` — the Wave 5
+      graph extractor no longer emits ``description_parts`` /
+      ``compacted_description``, so any non-empty value here would be
+      stale residue. Field kept (instead of removed) only so existing
+      callers that pass ``description=""`` keyword don't break;
+      boundary test ``test_graph_curation_description_free`` grep-
+      zeroes any ``entity.description`` *read* in
+      ``aperag/graph_curation/**`` + ``aperag/indexing/merge_candidate_detector.py``.
     * ``source_chunk_ids`` — flattened across all
       ``EntityWithLineage.source_lineage`` members so the candidate
       generator's ``shared_chunks`` heuristic still works.
@@ -72,7 +76,12 @@ class CurationEntity:
     collection_id: str
     name: str
     type: str
-    description: str
+    # Wave 5 description-NULL invariant (task #31 A3): always ``""``
+    # for entities materialised via :meth:`from_lineage`. Field kept
+    # default-empty for backward-compat with callers that explicitly
+    # pass ``description=""`` (or pre-Wave-5 fixtures); new code paths
+    # must not read it (boundary test enforced).
+    description: str = ""
     source_chunk_ids: Sequence[str] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -97,12 +106,17 @@ class CurationEntity:
         ``collection_id`` is supplied by the caller because the
         ``EntityWithLineage`` view is per-collection-bound at the
         store level and does not carry the id field on the row.
-        """
-        if entity.compacted_description:
-            description = entity.compacted_description
-        else:
-            description = "\n\n".join(p.text for p in entity.description_parts if p.text)
 
+        Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5
+        item 4): description input no longer depends on
+        ``entity.compacted_description`` / ``entity.description_parts``
+        — Wave 5 graph extractor stopped emitting them, so the legacy
+        derivation would always collapse to ``""`` and any non-empty
+        value (e.g. on a stale row from before the cut-over) would
+        leak into dedup scoring. Set explicitly to ``""`` here so the
+        invariant is enforced at the boundary, not silently relied on
+        downstream.
+        """
         chunk_ids: list[str] = []
         for member in entity.source_lineage:
             chunk_ids.extend(member.chunk_ids)
@@ -112,7 +126,7 @@ class CurationEntity:
             collection_id=collection_id,
             name=entity.name,
             type=entity.entity_type,
-            description=description,
+            description="",
             source_chunk_ids=tuple(chunk_ids),
         )
 

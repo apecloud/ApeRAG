@@ -293,11 +293,55 @@ async def test_run_and_suggestions_carry_auto_detect_tags():
 async def test_target_entity_id_is_alphabetical_first():
     """Architect ratify #3: deterministic, reproducible canonical pick.
     ``min(name_a, name_b)`` so the same pair across syncs always points
-    at the same surviving entity."""
+    at the same surviving entity.
+
+    Wave 5 description-NULL invariant (task #31 A3): pre-Wave-5 this
+    test surfaced the candidate pair via ``description_token_overlap``
+    on identical descriptions. That signal is gone post Wave 5
+    (descriptions are NULL); this test now drives the pair via the
+    vector-neighbour signal, which is the canonical Wave-5+
+    description-free recall surface.
+    """
     # Construct two entities where alphabetical order ≠ insertion order.
-    z = _entity("Zephyr Corp", description="A wind energy company headquartered in Berlin")
-    a = _entity("Aeolus Inc", description="A wind energy company headquartered in Berlin")
-    detector, recorder, *_ = _make_detector(entities={z.name: z, a.name: a})
+    z = _entity("Zephyr Corp")
+    a = _entity("Aeolus Inc")
+    embedder = _FakeEmbedder()
+    z_text = MergeCandidateDetector._embedding_query_text(z)
+    a_text = MergeCandidateDetector._embedding_query_text(a)
+    embedder.embed_query(z_text)  # warm cache
+    embedder.embed_query(a_text)  # warm cache
+    z_vec = tuple(embedder._cache[z_text])
+    a_vec = tuple(embedder._cache[a_text])
+    detector, recorder, *_ = _make_detector(
+        entities={z.name: z, a.name: a},
+        hits_by_query={
+            z_vec: [
+                SearchHit(
+                    id="self_z",
+                    score=1.0,
+                    payload={"entity_name": z.name, "indexer": "graph_entity"},
+                ),
+                SearchHit(
+                    id="nbr_a",
+                    score=0.91,
+                    payload={"entity_name": a.name, "indexer": "graph_entity"},
+                ),
+            ],
+            a_vec: [
+                SearchHit(
+                    id="self_a",
+                    score=1.0,
+                    payload={"entity_name": a.name, "indexer": "graph_entity"},
+                ),
+                SearchHit(
+                    id="nbr_z",
+                    score=0.91,
+                    payload={"entity_name": z.name, "indexer": "graph_entity"},
+                ),
+            ],
+        },
+        embedder=embedder,
+    )
 
     await detector.detect_for_sync(
         sync_run_id="sync-7",
@@ -327,7 +371,11 @@ async def test_vector_neighbour_pulls_in_unsynced_existing_entity():
     affected = _entity("OpenAI", description="An AI research lab")
     neighbour = _entity("OpenAI Foundation", description="An AI research lab")
     embedder = _FakeEmbedder()
-    affected_text = MergeCandidateDetector._description_text_for_scoring(affected)
+    # Wave 5 description-NULL invariant (task #31 A3): embedding query
+    # is built from ``entity.name + entity_type`` — descriptions are
+    # NULL post Wave 5, so the embedding query text mirrors how the
+    # graph_vectors worker writes the entity vector.
+    affected_text = MergeCandidateDetector._embedding_query_text(affected)
     embedder.embed_query(affected_text)  # warm cache so we know the vector
     affected_vec = tuple(embedder._cache[affected_text])
     detector, recorder, connector, _ = _make_detector(
@@ -371,7 +419,9 @@ async def test_vector_search_uses_graph_entity_filter_and_threshold():
     chunk / summary points sharing the physical collection."""
     a = _entity("Acme")
     embedder = _FakeEmbedder()
-    embedder.embed_query("description of Acme")  # warm
+    # Wave 5 description-NULL invariant (task #31 A3): embedding query
+    # text is ``"<name> (<entity_type>)"`` — see ``_embedding_query_text``.
+    embedder.embed_query("Acme (organization)")  # warm
     detector, _, connector, _ = _make_detector(
         entities={a.name: a},
         hits_by_query={},
@@ -414,32 +464,69 @@ async def test_supersede_runs_even_when_no_suggestions():
 
 
 # ---------------------------------------------------------------------
-# Forward compat: detector tolerates compacted_description when present
+# Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5)
 # ---------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_uses_compacted_description_when_present():
-    """When task #1's ``compacted_description`` field is set, the
-    detector embeds / scores against the compacted text — not the raw
-    parts — so behaviour matches what task #3's worker writes."""
-    a = _entity("OpenAI", description="raw fragment 1")
-    b = _entity("OpenAI Inc.", description="raw fragment 2")
-    # Mimic task #1's optional kwarg via direct attr-set (the field is
-    # added in PR #1754; until merged, the dataclass tolerates it via
-    # the default-None pattern).
-    object.__setattr__(a, "compacted_description", "OpenAI is an AI research lab.")
-    embedder = _FakeEmbedder()
-    detector, _, _, embedder = _make_detector(
-        entities={a.name: a, b.name: b},
-        embedder=embedder,
+def test_embedding_query_text_uses_entity_name_and_type() -> None:
+    """``_embedding_query_text`` must build the query from
+    ``entity.name + entity_type`` — Wave 5 description-NULL invariant
+    (task #31 A3, spec § 3.1.5 item 5).
+
+    The legacy ``_description_text_for_scoring`` helper read
+    ``compacted_description`` / ``description_parts``; Wave 5 graph
+    extractor no longer emits either, so the legacy path always
+    short-circuited to ``""`` and produced zero candidates after the
+    cut-over. The replacement query mirrors how the graph_vectors
+    worker writes the entity vector in the first place — name + type.
+    """
+    e = _entity("OpenAI", entity_type="organization", description="legacy residue")
+    text = MergeCandidateDetector._embedding_query_text(e)
+    assert text == "OpenAI (organization)", (
+        "Embedding query text must be `<name> (<entity_type>)` so the "
+        "vector recall side and the graph_vectors write side embed the "
+        "same input shape (Wave 5 task #5 / #7 split)."
     )
 
-    await detector.detect_for_sync(
-        sync_run_id="sync-cmp",
-        affected_entity_names=[a.name, b.name],
-    )
 
-    # The embedder saw the compacted text for ``a``, not the raw parts.
-    assert "OpenAI is an AI research lab." in embedder.calls
-    assert "raw fragment 1" not in "".join(embedder.calls)
+def test_embedding_query_text_falls_back_to_name_when_type_missing() -> None:
+    """Entities with no ``entity_type`` (legacy rows / loose extractions)
+    still produce a stable embedding query — bare ``entity.name``."""
+    e = _entity("Acme")
+    object.__setattr__(e, "entity_type", "")
+    assert MergeCandidateDetector._embedding_query_text(e) == "Acme"
+
+
+def test_embedding_query_text_does_not_read_description_parts() -> None:
+    """Wave 5 description-NULL invariant: even if a stale row carries
+    ``description_parts`` text, ``_embedding_query_text`` must not read
+    it. Reviewer recall would otherwise vary between freshly extracted
+    rows (parts empty) and pre-Wave-5 residue rows (parts populated).
+    """
+    # Construct an entity whose description_parts looks "interesting"
+    # — the helper must still produce only the name+type string.
+    e = _entity("Stale", entity_type="legacy", description="sensitive residue text")
+    assert MergeCandidateDetector._embedding_query_text(e) == "Stale (legacy)"
+    assert "sensitive residue" not in MergeCandidateDetector._embedding_query_text(e)
+
+
+def test_snapshot_does_not_include_description() -> None:
+    """``MergeCandidateDetector._snapshot`` is the payload persisted
+    to ``GraphCurationSuggestion.entity_snapshots``. Wave 5 description-
+    NULL invariant + spec § 3.1.5 item 6: snapshot must not surface
+    ``description`` — reviewers operate on name + type +
+    source_chunk_count instead.
+    """
+    e = _entity("OpenAI", entity_type="organization", description="legacy residue", chunk_ids=("c1", "c2"))
+    snapshot = MergeCandidateDetector._snapshot(e)
+    assert "description" not in snapshot, (
+        "Snapshot must not carry a `description` key — Wave 5 description-"
+        "NULL invariant. Allowed shape: entity_id / entity_name / "
+        "entity_type / source_chunk_count."
+    )
+    assert snapshot == {
+        "entity_id": "OpenAI",
+        "entity_name": "OpenAI",
+        "entity_type": "organization",
+        "source_chunk_count": 2,
+    }
