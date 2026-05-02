@@ -394,17 +394,323 @@ podDisruptionBudget:
 
 ---
 
-## 10. 待 @ziang 补充章节
+## 9. K8s 生产部署参数（per earayu2 msg=caf5c760 / msg=4e9c909c — K8s 走 prod, docker-compose 仅 e2e）
 
-- §11 读路径 + GraphVectors/chunks.jsonl 复用边界（重复 IO / 重复派生 / cache key 失效）
-- §12 cleanup / deletion / reconciler（批删 SQL / 失败重试 / stale reclaim）
-- §13 长文档/大量文档端到端瓶颈排序（parser / artifact / DB / queue / LLM / graph store 分层归因）
-- §14 联合验收 checklist（合并 §6 实施切片 + ziang 补充项）
+### 9.1 ApeRAG 部署形态确认
+
+| 部署目标 | 用途 | 当前 default |
+|---|---|---|
+| **Kubernetes (KubeBlocks for DB)** | **生产** | Helm chart `deploy/aperag/` |
+| docker-compose | e2e / 本地开发 / SOHO 单机 | `docker-compose.yml` |
+
+K8s prod 的所有 perf-relevant 参数都在 `deploy/aperag/values.yaml`，本节按层列出 default + tier 1/2/3 推荐。
+
+### 9.2 资源 requests/limits
+
+| 组件 | 当前 | Tier 2 (中型 1K-10K docs) | Tier 3 (大型 10K+ / 长文) |
+|---|---|---|---|
+| `api` | `resources: {}` (Best-Effort QoS) | `requests: cpu=500m mem=1Gi` `limits: cpu=2 mem=4Gi` | `requests: cpu=1 mem=2Gi` `limits: cpu=4 mem=8Gi` |
+| `indexingWorker` | `resources: {}` | `requests: cpu=2 mem=4Gi` `limits: cpu=4 mem=8Gi` | `requests: cpu=4 mem=8Gi` `limits: cpu=8 mem=16Gi` |
+| `frontend` | `resources: {}` | `requests: cpu=100m mem=256Mi` `limits: cpu=500m mem=512Mi` | 同 Tier 2 |
+
+**P0-Helm-1**：values.yaml 增加 `resources.requests` 默认（Tier 2 sane defaults）。理由：
+- `resources: {}` 在 K8s 是 BestEffort QoS，OOM 时第一个被 kill，且没有 CPU 保留；生产环境直接死。
+- 默认值不写死成 limits（避免 throttle 引起神奇 latency），只写 requests 保证调度命中合适节点。
+
+### 9.3 副本数 + HPA
+
+**当前**：`api.replicaCount=1`, `indexingWorker.replicaCount=1`，没有 HPA。
+
+**P1-Helm-2** HPA 模板（per `q:parse` + `q:indexing:*` queue depth via KEDA）：
+
+```yaml
+# values.yaml 新增
+hpa:
+  api:
+    enabled: false   # default off — 用户决定是否打开
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  indexingWorker:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 8
+    # KEDA-based scaling on Redis queue depth
+    keda:
+      enabled: false
+      triggers:
+        - type: redis
+          metadata:
+            address: "{redis-host}:6379"
+            listName: "q:parse"
+            listLength: "10"  # scale up if >10 items pending
+        - type: redis
+          metadata:
+            listName: "q:indexing:vector"
+            listLength: "100"
+```
+
+**leader-election 边界**（开多 replica 时必须确认）：
+- `run_reconcile_loop` 在每 pod 都跑会重复扫表（每 30s 都扫 PENDING + FAILED + RUNNING + stuck + collection_regen + graph_vectors_enqueue）
+- `run_cleanup_loop` 在每 pod 都跑会重复扫 orphan
+- 短期：`indexingWorker.replicaCount=1` 时无问题；扩 replica 前必须加 leader-election（Redis Lua SETNX + lease），否则 reconciler 会重复 push（虽然 idempotent，但浪费 Redis IOPS + DB 扫描成本）
+
+**P1-Helm-3** Leader-election 简易实现：
+- 启动时每 pod 用 `redis SETNX indexing:leader:<lane> <pod_name> EX 60`，赢的 pod 跑 reconciler / cleanup
+- 每 20s renew lease（`SET ... XX EX 60`）；丢失 lease 立即停 reconciler / cleanup loop
+- worker lane（vector/fulltext/graph_*/summary/vision/parse/graph_curation）多 replica 安全（Redis BLPOP 互斥）— 不需要 leader-election
+
+### 9.4 PVC / 持久化
+
+| 卷 | 用途 | Tier 2 | Tier 3 |
+|---|---|---|---|
+| `api-data` (`/data/aperag`) | API 临时缓存 | 10 GiB | 50 GiB |
+| `indexingWorker-objects` (`/data/objects`) | parser 派生 artifact + 用户上传源 | 100 GiB | 1 TiB（或切 S3/MinIO）|
+| postgres-data (KubeBlocks 管) | 主 DB + DocumentIndex + pgvector | 50 GiB | 200 GiB |
+| qdrant-data (KubeBlocks 管) | 向量库 | 50 GiB | 500 GiB |
+| es-data (KubeBlocks 管) | 全文索引 | 30 GiB | 200 GiB |
+| redis-data (KubeBlocks 管) | 队列 + 缓存 + quota | 5 GiB | 20 GiB |
+
+**P1-Helm-4**：`OBJECT_STORE_TYPE=local` 在 multi-replica 部署下不能用（每 pod 独立盘看不到对方写的 artifact）。Tier 2+ 必须切 `OBJECT_STORE_TYPE=s3`（含 MinIO）。values.yaml 加 enforcement：`indexingWorker.replicaCount > 1 && OBJECT_STORE_TYPE == "local"` → 启动 Helm template error。
+
+### 9.5 PodDisruptionBudget + 滚动升级
+
+**P2-Helm-5**：
+```yaml
+podDisruptionBudget:
+  api:
+    enabled: true
+    minAvailable: 1
+  indexingWorker:
+    enabled: true
+    minAvailable: 1
+```
+
+`indexing-worker-deployment.yaml` 已经用 `livenessProbe.exec: pgrep -f aperag.cli.indexing_worker` + 25s graceful drain（per task #17 cuiwenbo msg=f7868d2c），rolling update 时不会丢 in-flight task。
+
+### 9.6 监控 + 告警（K8s prod 必备）
+
+- `process_resident_memory_bytes` per-pod，p95 报警 > 80% requests
+- `q:parse` / `q:indexing:*` queue depth（KEDA / Prometheus）
+- `document_index` 表 size + dead tuple ratio
+- `pg_stat_activity` 监控 worker DB 连接占用 vs pool budget
+- pgvector / Qdrant write latency p99
+- 每个 modality `derive` + `sync` duration p50/p95/p99（已有 OTLP 但默认 emitter=noop，prod 必须切 otlp）
 
 ---
 
-> 文档版本：v1
+## 10. PG + KubeBlocks + pgbouncer（per earayu2 msg=e6e4d366 / msg=2f9b062f）
+
+### 10.1 当前现况
+
+- `deploy/databases/postgresql/values.yaml` 走 KubeBlocks 部署 PG cluster（`pg-cluster-postgresql-postgresql` SVC）
+- 没有 pgbouncer（ApeRAG 直连 PG）
+- API pod `dbPoolSize=5/dbMaxOverflow=5`, indexingWorker `dbPoolSize=10/dbMaxOverflow=10`
+- pool 公式手算（values.yaml L324-333）：`sum(replicas * (pool+overflow)) + surge + reserved < max_connections * 0.7`
+
+### 10.2 引入 pgbouncer 的收益
+
+1. **副本扩展不再卡 max_connections**：pgbouncer 把 `client_conn` 复用到固定 `pool_size` 个 server connection，PG max_connections 100 时 ApeRAG 端可以挂 200-500 client。
+2. **冷启动 / 拥塞场景更稳**：rolling update 期间多 replica 同时建连不会瞬时打爆 PG。
+3. **PG max_connections 不再频繁调高**（避免 PG memory overhead — 每连接 ~10 MB）。
+
+### 10.3 关键决策：pooling mode
+
+| 模式 | 兼容性 | 说明 |
+|---|---|---|
+| `session pooling` | 100% 兼容 ApeRAG | 每个 client 独占 1 个 server 连接直到 disconnect — 跟没装 pgbouncer 差不多，**不推荐** |
+| `transaction pooling`（earayu2 directive） | **需要逐项验证** | 每个 transaction 独占 server 连接 — pool_size 可以远小于 client_conn |
+| `statement pooling` | ApeRAG 不兼容 | 跨 statement 不保证同一个 server — 破坏 session 状态 |
+
+**transaction pooling 兼容性 audit checklist**（必须在 PR 前 ✅）：
+
+- [ ] **prepared statements**：transaction pooling 不支持跨 transaction 复用 prepared statement。SQLAlchemy 默认不用 server-side prepared，但 asyncpg dialect 有时会启用 → 必须 grep 确认 `prepare_threshold` / `statement_cache_size=0`
+- [ ] **`SET LOCAL`**：transaction-scoped，安全。Grep `session.execute("SET LOCAL ...")` 确认所有调用都包在 begin block。
+- [ ] **`SET` (session-scoped)**：会跨 transaction 漏到下个 client，必须用 `SET LOCAL`。Grep `session.execute("SET ...")` 看有无 non-LOCAL 用法。
+- [ ] **temporary tables**：跨 transaction 不可见，ApeRAG 没用，✅
+- [ ] **listen/notify**：跨 transaction 不可见，ApeRAG 没用，✅
+- [ ] **advisory locks**：`pg_advisory_lock(...)` 是 session-scoped，会泄漏；必须用 `pg_advisory_xact_lock(...)`（transaction-scoped）。Grep ApeRAG 代码没找到 advisory lock 用法，✅
+- [ ] **`reset` 行为**：`pgbouncer.ini` 设 `server_reset_query = DISCARD ALL` 兜底（默认就是这个）
+
+### 10.4 推荐 pgbouncer 参数
+
+```ini
+# pgbouncer.ini — 中型私有化（Tier 2）
+[databases]
+aperag = host=pg-cluster-postgresql-postgresql port=5432 dbname=postgres
+
+[pgbouncer]
+pool_mode = transaction
+listen_port = 6432
+max_client_conn = 500           # ApeRAG 端可以挂 500 client
+default_pool_size = 25          # 每 db 默认 25 server connection
+reserve_pool_size = 5           # 拥塞时额外 5 个应急
+reserve_pool_timeout = 3        # 等 3s 拿不到才走 reserve
+server_idle_timeout = 600       # 10 min 空闲就关，让 PG 内存稳定
+server_reset_query = DISCARD ALL
+ignore_startup_parameters = extra_float_digits,application_name
+log_connections = 0             # prod 关掉减压
+log_disconnections = 0
+```
+
+PG 端配套：
+
+```yaml
+# KubeBlocks PG cluster values
+postgresql:
+  parameters:
+    max_connections: "100"      # 内 reserve 给 pgbouncer (25*N + 10 maintenance)
+    shared_buffers: "2GB"       # 25% of 8GB request
+    work_mem: "16MB"            # vector / graph 复杂查询
+    maintenance_work_mem: "256MB"
+    max_wal_size: "2GB"
+```
+
+### 10.5 ApeRAG 侧改造
+
+```yaml
+# values.yaml
+api:
+  dbPoolSize: "20"          # 5 → 20（pgbouncer 拿一个，PG 端不感）
+  dbMaxOverflow: "10"
+indexingWorker:
+  dbPoolSize: "30"          # 10 → 30
+  dbMaxOverflow: "10"
+postgres:
+  POSTGRES_HOST: "pgbouncer-svc"  # 走 pgbouncer，不直连 pg-cluster
+  POSTGRES_PORT: "6432"           # pgbouncer 端口
+```
+
+ApeRAG 应用层 `pool_size=20+10=30`，4 个 replica = 120 client 连 pgbouncer，pgbouncer pool_size=25 server connection 接 PG。PG max_connections=100，剩余 75 给 KubeBlocks 维护 + 备份 + 监控 + 应急。
+
+**P1-Helm-6** Helm 模板：
+
+1. 增加 `deploy/databases/pgbouncer/values.yaml`（KubeBlocks pgbouncer addon）
+2. `deploy/aperag/values.yaml` 加 `postgres.via_pgbouncer: true` 默认 enable
+3. `aperag-secret.yaml` 改用 pgbouncer SVC 注入 `DATABASE_URL`
+4. 启动 self-check：`SHOW pool_mode` if 走 pgbouncer，必须 == `transaction`
+
+### 10.6 验证
+
+- 单元测试：mock pgbouncer `pool_mode=transaction`，跑全部 `tests/db/` 用例（特别是 `test_collection_regen_lease.py` advisory lock 类）
+- 压测：4 replica × `dbPoolSize=30` 同时启动 → pgbouncer 不应该 client_conn 撑爆
+- 回归：task #61 P2-S2 N-seed PG connection saturation 复测（已经 ship 的 fix），确认 pgbouncer 引入后还是稳定
+
+---
+
+## 11. 可配化清单（admin UI 接入建议，per earayu2 msg=99c1d23a）
+
+### 11.1 现况
+
+`/admin/configuration` page (`web/src/app/admin/configuration/page.tsx`) 已有：
+- `ParserSettings`：`use_markitdown` / `use_mineru` / `mineru_api_token`
+- `QuotaSettings`：每用户 / 每 collection 配额
+
+settings 持久化走 `aperag/domains/governance/service/setting_service.py`（DB key-value 表），单条 update 用 `update_setting(key, value)`。
+
+### 11.2 审计找到的新参数 — 建议接入 admin UI
+
+#### 类 A：runtime perf 类（**强烈建议接入** — 非 ops，运维 + 开发都关心）
+
+| 参数 | 当前 default | 建议 admin UI 范围 | 卡片归属 |
+|---|---|---|---|
+| `embedding_max_chunks_in_batch` | 10 | 8-128 | **新建 IndexingSettings 卡片** |
+| `embedding_max_workers` | 1 | 1-8 | IndexingSettings |
+| `indexing_vector_concurrency` | 16 | 4-64 | IndexingSettings |
+| `indexing_fulltext_concurrency` | 32 | 8-128 | IndexingSettings |
+| `indexing_graph_facts_concurrency` | 4 | 1-16 | IndexingSettings |
+| `indexing_graph_vectors_concurrency` | 4 | 1-16 | IndexingSettings |
+| `indexing_summary_concurrency` | 4 | 1-16 | IndexingSettings |
+| `indexing_vision_concurrency` | 4 | 1-16 | IndexingSettings |
+| `indexing_parse_concurrency` | 8 | 1-32 | IndexingSettings |
+| `indexing_reconcile_interval_seconds` | 30 | 10-300 | IndexingSettings（高级）|
+| `indexing_reconcile_batch_size` | 100 | 10-1000 | IndexingSettings（高级）|
+| `indexing_cleanup_interval_seconds` | 300 | 60-3600 | IndexingSettings（高级）|
+| `chunk_size` | 400 | 100-2000 | ParserSettings（已有卡，加新字段）|
+| `chunk_overlap_size` | 20 | 0-200 | ParserSettings |
+
+#### 类 B：collection-level（**已经在 collection config**，admin UI 是修改 default）
+
+| 参数 | 用途 | admin UI 卡片 |
+|---|---|---|
+| `enable_vector` / `enable_fulltext` / `enable_knowledge_graph` / `enable_summary` / `enable_vision` | 5 lane on/off | 已在 collection 创建页；admin 设全局 default |
+| `graph_extraction_window_size` | graph chunk window | 已在 collection.config；admin UI 没必要重复 |
+| `graph_extraction_llm_concurrency` | graph LLM 并发（建议 P2-7 抽出） | 同上 |
+
+#### 类 C：infra ops 类（**不接入 admin UI** — 走 Helm/env，避免运行时改动 K8s 配置）
+
+| 参数 | 理由 |
+|---|---|
+| `db_pool_size` / `db_max_overflow` / `db_pool_timeout` | 改了要重启进程，是部署期参数，不是运行期参数 |
+| `indexing_queue_redis_url` / `indexing_quota_redis_url` | 部署期参数 |
+| `pgbouncer pool_size / max_client_conn / server_idle_timeout` | pgbouncer 自己的配置，跟 ApeRAG 无关 |
+| `K8s resources.requests/limits` | Helm 改完滚动升级 |
+| `HPA min/max replicas` | Helm 改完滚动升级 |
+| `qdrant_quantization_*` / `qdrant_hnsw_on_disk` | Qdrant collection 创建参数，改了要重建集合 |
+| `pgvector_hnsw_m / ef_construction` | 同上 |
+| `MAX_DOCUMENT_SIZE` | 上传限制，admin UI 已有 quota 卡，应放 quota 卡而非 indexing 卡 |
+
+### 11.3 推荐 UI 落地
+
+**P2-Admin-1** 新建 `IndexingSettings` 卡片（`web/src/app/admin/configuration/indexing-settings.tsx`）：
+
+```
+┌─ Indexing Settings ───────────────────────────────────┐
+│  [Embedding]                                          │
+│    Max chunks per batch: [____10__] (8-128)           │
+│    Max parallel workers: [_____1__] (1-8)             │
+│                                                       │
+│  [Worker concurrency] (per modality, asyncio Semaphore) │
+│    Vector:        [____16__] (4-64)                   │
+│    Fulltext:      [____32__] (8-128)                  │
+│    Graph facts:   [_____4__] (1-16)                   │
+│    Graph vectors: [_____4__] (1-16)                   │
+│    Summary:       [_____4__] (1-16)                   │
+│    Vision:        [_____4__] (1-16)                   │
+│    Parse:         [_____8__] (1-32)                   │
+│                                                       │
+│  [Advanced: reconciler / cleanup]                     │
+│    Reconcile interval (s):  [____30__] (10-300)       │
+│    Reconcile batch size:    [___100__] (10-1000)      │
+│    Cleanup interval (s):    [___300__] (60-3600)      │
+│    Cleanup batch size:      [___200__] (10-1000)      │
+│                                                       │
+│  [⚠️ 改动需要重启 indexing-worker pod 才能生效]         │
+│                                                       │
+│  [Save]   [Reset to defaults]                         │
+└───────────────────────────────────────────────────────┘
+```
+
+**关键 UX 决策**：改动后只入 DB（settings 表），不立即生效。worker 启动时读 settings → 覆盖 env default。这样：
+- ops 不需要 kubectl edit values.yaml 滚动升级
+- admin UI 改动 → kubectl rollout restart deployment/indexing-worker → 30s 内新值生效
+- 兼容当前 env-based 部署：env 优先级 > DB settings（避免 admin UI 误改影响紧急止损）
+
+**P2-Admin-2** Backend changes：
+- `aperag/config.py`：每个 indexing_* 参数加一个 helper `get_indexing_setting(key, default)`，启动时优先读 env，env 没有则读 DB settings 表
+- `aperag/cli/indexing_worker.py:_amain()` 启动时把 settings 注入 `OrchestratorConfig` / `ParseOrchestratorConfig`
+- `aperag/domains/governance/service/setting_service.py` 增加 `get_indexing_settings()` / `update_indexing_settings(...)` helper
+- 新建 OpenAPI route `GET/PUT /api/v1/admin/configuration/indexing`（参考已有 `/admin/configuration/parser`）
+
+### 11.4 hook 给前端 (@dongdong)
+
+- 新建 `web/src/features/admin/indexing-settings/`：i18n key `admin_config.indexing.*`，schema validation（zod）
+- 加 sidebar 菜单项 `Indexing` 单独卡片或 ParserSettings 同卡分组
+- e2e：`web-e2e/admin/configuration-indexing.spec.ts`
+
+---
+
+## 12. （待 @ziang 补充）读路径 + GraphVectors/chunks.jsonl 复用边界
+## 13. （待 @ziang 补充）cleanup / deletion / reconciler 批删 SQL
+## 14. （待 @ziang 补充）端到端瓶颈归因（你的视角，跟 §5 互补）
+## 15. （待 @ziang 补充）KubeBlocks 研究（kubeblocks-skills 仓） → 折进 §10 PG/pgbouncer 章节
+## 16. （待联合）验收 checklist + Wave 1-4 排期收口
+
+---
+
+> 文档版本：v1（§1-§11 by 符炫炜）
 > 作者：@符炫炜（架构师）
-> 评审：@ziang（待补充 §11-13）
+> 待补：@ziang §12-§16
 > 验收：@earayu2（msg=718c79ba directive）
 > 跟踪：@不穷（PM）
+> main HEAD pin: `eb4c4f3d` (2026-04-30 18:46)
