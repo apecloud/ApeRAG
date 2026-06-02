@@ -24,8 +24,8 @@ ApeRAG is the best choice for building your own Knowledge Graph, Context Enginee
 
 > Before installing ApeRAG, make sure your machine meets the following minimum system requirements:
 >
-> - CPU >= 2 Core
-> - RAM >= 4 GiB
+> - CPU >= 2 cores
+> - RAM >= 4 GiB (recommended 8 GiB)
 > - Docker & Docker Compose
 
 The easiest way to start ApeRAG is through Docker Compose. Before running the following commands, make sure that [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) are installed on your machine:
