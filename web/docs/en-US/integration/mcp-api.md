@@ -17,7 +17,7 @@ For Claude Desktop, add to configuration file:
 {
   "mcpServers": {
     "aperag": {
-      "url": "https://rag.apecloud.com/mcp/",
+      "url": "http://localhost:8000/mcp/",
       "headers": {
         "Authorization": "Bearer your-api-key-here"
       }

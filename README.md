@@ -1,9 +1,6 @@
 # ApeRAG
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/apecloud/ApeRAG)](https://archestra.ai/mcp-catalog/apecloud__aperag)
 
-**🚀 [Try ApeRAG Live Demo](https://rag.apecloud.com/)** - Experience the full platform capabilities with our hosted demo
-
-
 ![HarryPotterKG2.png](docs%2Fen-US%2Fimages%2FHarryPotterKG2.png)
 
 ![chat2.png](docs%2Fen-US%2Fimages%2Fchat2.png)
@@ -52,7 +49,7 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
 {
   "mcpServers": {
     "aperag-mcp": {
-      "url": "https://rag.apecloud.com/mcp/",
+      "url": "http://localhost:8000/mcp/",
       "headers": {
         "Authorization": "Bearer your-api-key-here"
       }
@@ -65,7 +62,7 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
 1. **HTTP Authorization Header** (Recommended): `Authorization: Bearer your-api-key`
 2. **Environment Variable** (Fallback): `APERAG_API_KEY=your-api-key`
 
-**Important**: Replace `https://rag.apecloud.com` with your actual ApeRAG API URL and `your-api-key-here` with a valid API key from your ApeRAG settings.
+**Important**: Use your deployed API origin if not local (e.g. `https://your-host/mcp/`). Replace `your-api-key-here` with a valid API key from your ApeRAG settings.
 
 The MCP server provides:
 - **Collection browsing**: List and explore your knowledge collections
