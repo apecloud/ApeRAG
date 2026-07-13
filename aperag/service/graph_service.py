@@ -440,6 +440,60 @@ class GraphService:
 
         return db_collection
 
+    async def search_entities(
+        self,
+        user_id: str,
+        collection_id: str,
+        query: str,
+        max_results: int = 50,
+    ) -> Dict[str, Any]:
+        """Search entities in the knowledge graph by name"""
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        rag = await lightrag_manager.create_lightrag_instance(db_collection)
+        try:
+            kg: KnowledgeGraph = await rag.get_knowledge_graph(
+                node_label="*",
+                max_depth=1,
+                max_nodes=10000,
+            )
+            query_lower = query.lower()
+            matching = [n for n in kg.nodes if query_lower in str(n.id).lower()]
+            result = self._convert_graph_to_dict(matching[:max_results], [], False)
+            return {"nodes": result["nodes"], "total": len(matching)}
+        finally:
+            await rag.finalize_storages()
+
+    async def get_embedding_map(
+        self,
+        user_id: str,
+        collection_id: str,
+        max_nodes: int = 500,
+    ) -> Dict[str, Any]:
+        """Get entity list for embedding map visualization"""
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        rag = await lightrag_manager.create_lightrag_instance(db_collection)
+        try:
+            kg: KnowledgeGraph = await rag.get_knowledge_graph(
+                node_label="*",
+                max_depth=1,
+                max_nodes=max_nodes * 2,
+            )
+            # Compute per-node degree from edges
+            degree_map: Dict[str, int] = {}
+            for edge in kg.edges:
+                degree_map[edge.source] = degree_map.get(edge.source, 0) + 1
+                degree_map[edge.target] = degree_map.get(edge.target, 0) + 1
+
+            nodes = kg.nodes[:max_nodes]
+            result = self._convert_graph_to_dict(nodes, [], False)
+            for node in result["nodes"]:
+                node["degree"] = degree_map.get(node["id"], 0)
+            return {"entities": result["nodes"], "total": len(nodes)}
+        finally:
+            await rag.finalize_storages()
+
     async def export_for_kg_eval(
         self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
     ) -> Dict[str, Any]:

@@ -268,6 +268,18 @@ def audit(resource_type: str, api_name: str = None):
 
                 # Record end time
                 end_time_ms = int(time.time() * 1000)
+                duration_ms = end_time_ms - start_time_ms
+
+                # Emit a concise latency line for every audited endpoint so
+                # that the duration is visible in logs independently of whether
+                # the audit DB write succeeds.
+                logger.info(
+                    "api %s %s (%s) status=200 duration_ms=%d",
+                    request.method,
+                    request.url.path,
+                    actual_api_name,
+                    duration_ms,
+                )
 
                 # Extract request data from function arguments (after parsing)
                 request_data = _extract_request_data_from_args(request, kwargs)
