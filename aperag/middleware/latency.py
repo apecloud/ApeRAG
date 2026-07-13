@@ -63,6 +63,7 @@ class LatencyLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         start = time.perf_counter()
         status_code = 500  # default in case call_next raises
+        response = None
 
         try:
             response = await call_next(request)
@@ -78,8 +79,9 @@ class LatencyLoggingMiddleware(BaseHTTPMiddleware):
                 logger.info(*msg)
 
             # Expose latency to the caller via a response header.
-            # We must read the response before adding headers; Starlette's
-            # BaseHTTPMiddleware gives us the response object so this is safe.
-            response.headers["X-Response-Time"] = f"{duration_ms}ms"
+            # Guard against the (rare) case where call_next raises before
+            # returning a response object.
+            if response is not None:
+                response.headers["X-Response-Time"] = f"{duration_ms}ms"
 
         return response
