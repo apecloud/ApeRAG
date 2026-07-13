@@ -214,7 +214,10 @@ evaluate:
 ##################################################
 
 # OpenAPI and model generation
-.PHONY: merge-openapi generate-models generate-frontend-sdk
+.PHONY: openapi-check merge-openapi generate-models generate-frontend-sdk
+openapi-check:
+	@npx --yes @redocly/cli bundle aperag/api/openapi.yaml --output /tmp/openapi-check-bundle.yaml && rm -f /tmp/openapi-check-bundle.yaml
+
 merge-openapi:
 	@cd aperag && npx --yes @redocly/cli bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 

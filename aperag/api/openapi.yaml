@@ -115,6 +115,10 @@ paths:
     $ref: './paths/collections.yaml#/graph_suggestion_action'
   /collections/{collection_id}/graphs/export/kg-eval:
     $ref: './paths/collections.yaml#/graph_export_kg_eval'
+  /collections/{collection_id}/graphs/embedding-map:
+    $ref: './paths/collections.yaml#/graph_embedding_map'
+  /collections/{collection_id}/graphs/entity-search:
+    $ref: './paths/collections.yaml#/graph_entity_search'
   /collections/{collection_id}/sharing:
     $ref: './paths/collections.yaml#/sharing'
 
@@ -135,6 +139,10 @@ paths:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionDocumentObject'
   /marketplace/collections/{collection_id}/graph:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionGraph'
+  /marketplace/collections/{collection_id}/graph/embedding-map:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionGraphEmbeddingMap'
+  /marketplace/collections/{collection_id}/graph/entity-search:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionGraphEntitySearch'
 
   # apikeys
   /apikeys:

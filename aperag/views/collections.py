@@ -459,3 +459,42 @@ async def get_knowledge_graph_view(
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/collections/{collection_id}/graphs/embedding-map", tags=["graph"])
+async def get_graph_embedding_map_view(
+    request: Request,
+    collection_id: str,
+    max_nodes: int = Query(500, ge=1, le=5000),
+    user: User = Depends(required_user),
+):
+    """Get entity list for embedding map visualization"""
+    from aperag.service.graph_service import graph_service
+
+    try:
+        result = await graph_service.get_embedding_map(str(user.id), collection_id, max_nodes)
+        return result
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/collections/{collection_id}/graphs/entity-search", tags=["graph"])
+async def get_graph_entity_search_view(
+    request: Request,
+    collection_id: str,
+    q: str = Query(..., min_length=1, description="Search query"),
+    max_results: int = Query(50, ge=1, le=500),
+    user: User = Depends(required_user),
+):
+    """Search entities in the knowledge graph by name"""
+    from aperag.service.graph_service import graph_service
+
+    try:
+        result = await graph_service.search_entities(str(user.id), collection_id, q, max_results)
+        return result
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

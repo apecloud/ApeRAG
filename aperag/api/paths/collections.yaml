@@ -1345,6 +1345,105 @@ graph_export_kg_eval:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+graph_embedding_map:
+  get:
+    summary: Get entity list for embedding map visualization
+    description: Returns entities with their degree counts for use in an embedding map scatter-plot visualization.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+      - name: max_nodes
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          default: 500
+        description: Maximum number of entities to return
+    responses:
+      '200':
+        description: Entity list for embedding map
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entities:
+                  type: array
+                  items:
+                    type: object
+                total:
+                  type: integer
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+graph_entity_search:
+  get:
+    summary: Search entities in the knowledge graph
+    description: Full-text search on entity names within the collection's knowledge graph.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Search query
+      - name: max_results
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 50
+        description: Maximum number of results to return
+    responses:
+      '200':
+        description: Matching entities
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                total:
+                  type: integer
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 sharing:
   get:
     summary: Get collection sharing status

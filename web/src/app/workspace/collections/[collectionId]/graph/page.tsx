@@ -23,7 +23,7 @@ export default async function Page() {
           },
         ]}
       />
-      <div className="flex h-[calc(100vh-48px)] flex-col px-0">
+      <div className="flex min-h-[calc(100vh-48px)] flex-col px-0">
         <CollectionHeader className="w-full" />
         <PageContent className="flex w-full flex-1 flex-col">
           <CollectionGraph marketplace={false} />

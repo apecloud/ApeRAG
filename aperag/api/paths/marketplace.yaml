@@ -406,3 +406,106 @@ marketplaceCollectionGraph:
               $ref: '../components/schemas/common.yaml#/failResponse'
       '500':
         $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionGraphEmbeddingMap:
+  get:
+    summary: Get entity list for embedding map visualization (read-only, marketplace-safe)
+    description: Returns entities with degree counts for embedding map visualization. Uses the collection owner's credentials.
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: max_nodes
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          default: 500
+        description: Maximum number of entities to return
+    responses:
+      '200':
+        description: Entity list for embedding map
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entities:
+                  type: array
+                  items:
+                    type: object
+                total:
+                  type: integer
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found or not published
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionGraphEntitySearch:
+  get:
+    summary: Search entities in the knowledge graph (read-only, marketplace-safe)
+    description: Full-text search on entity names. Uses the collection owner's credentials.
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Search query
+      - name: max_results
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 50
+        description: Maximum number of results
+    responses:
+      '200':
+        description: Matching entities
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                total:
+                  type: integer
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found or not published
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'

@@ -35,6 +35,7 @@ from fastapi import FastAPI  # noqa: E402
 
 from aperag.agent.agent_event_listener import agent_event_listener  # noqa: E402
 from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_lifespan  # noqa: E402
+from aperag.domains.marketplace.api.routes import router as marketplace_graph_router
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
@@ -112,6 +113,7 @@ app.include_router(llm_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
 app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
+app.include_router(marketplace_graph_router, prefix="/api/v1")  # Add marketplace graph router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
