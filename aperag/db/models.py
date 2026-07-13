@@ -841,6 +841,7 @@ class AuditLog(Base):
     request_id = Column(String(255), nullable=False, comment="Request ID for tracking")
     start_time = Column(BigInteger, nullable=False, comment="Request start time (milliseconds since epoch)")
     end_time = Column(BigInteger, nullable=True, comment="Request end time (milliseconds since epoch)")
+    duration_ms = Column(BigInteger, nullable=True, comment="Request duration in milliseconds (end_time - start_time)")
     gmt_created = Column(DateTime(timezone=True), nullable=False, default=utc_now, comment="Created time")
 
     # Index for better query performance
@@ -854,6 +855,7 @@ class AuditLog(Base):
         Index("idx_audit_resource_id", "resource_id"),
         Index("idx_audit_request_id", "request_id"),
         Index("idx_audit_start_time", "start_time"),
+        Index("idx_audit_duration_ms", "duration_ms"),
     )
 
     def __repr__(self):

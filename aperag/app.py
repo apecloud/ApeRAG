@@ -38,6 +38,7 @@ from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_l
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
+from aperag.middleware.latency import LatencyLoggingMiddleware
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
@@ -85,6 +86,10 @@ app = FastAPI(
 
 # Register global exception handlers
 register_exception_handlers(app)
+
+# Measure and log the wall-clock duration of every HTTP request.
+# The middleware also adds an ``X-Response-Time`` header to each response.
+app.add_middleware(LatencyLoggingMiddleware)
 
 register_custom_llm_track()
 

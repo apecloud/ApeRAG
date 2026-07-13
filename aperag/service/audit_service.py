@@ -20,8 +20,10 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import sessionmaker
 
-from aperag.config import get_async_session
+from aperag.config import async_engine
 from aperag.db.models import AuditLog, AuditResource
 
 logger = logging.getLogger(__name__)
@@ -116,6 +118,16 @@ class AuditService:
 
         return None
 
+    def _make_session(self) -> AsyncSession:
+        """Create a short-lived async session for write operations.
+
+        Using a dedicated factory here means we open the session only for the
+        duration of the DB write, avoiding the ``async for ... break`` generator
+        antipattern and making the lifecycle explicit.
+        """
+        factory = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+        return factory()
+
     async def log_audit(
         self,
         user_id: Optional[str],
@@ -134,12 +146,37 @@ class AuditService:
         user_agent: Optional[str] = None,
         request_id: Optional[str] = None,
     ):
-        """Log an audit entry"""
+        """Log an audit entry and persist it to the database.
+
+        All expensive work (serialization, duration calculation) is done
+        *before* the session is opened so the connection is held for the
+        minimum time possible.
+        """
         if not self.enabled:
             return
 
         try:
-            # Create audit log entry
+            # Compute duration before touching the DB.
+            duration_ms: Optional[int] = None
+            if start_time is not None and end_time is not None:
+                duration_ms = end_time - start_time
+
+            # Serialize request/response data outside the session.
+            serialized_request = self._safe_json_serialize(request_data)
+            serialized_response = self._safe_json_serialize(response_data)
+
+            # Emit a structured log line so operators can tail logs without
+            # querying the database.
+            logger.info(
+                "audit %s %s %s status=%s duration_ms=%s",
+                http_method,
+                path,
+                api_name,
+                status_code,
+                duration_ms,
+            )
+
+            # Build the ORM object outside the session — no DB access needed.
             audit_log = AuditLog(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
@@ -151,24 +188,19 @@ class AuditService:
                 status_code=status_code,
                 start_time=start_time,
                 end_time=end_time,
-                request_data=self._safe_json_serialize(request_data),
-                response_data=self._safe_json_serialize(response_data),
+                duration_ms=duration_ms,
+                request_data=serialized_request,
+                response_data=serialized_response,
                 error_message=error_message,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 request_id=request_id or str(uuid.uuid4()),
             )
 
-            # Save to database with proper session management
-            async def _save_audit_log(session):
+            # Open the session only for the DB write; close it immediately after.
+            async with self._make_session() as session:
                 session.add(audit_log)
                 await session.commit()
-                return audit_log
-
-            # Use get_async_session with proper session management
-            async for session in get_async_session():
-                await _save_audit_log(session)
-                break  # Only process one session
 
         except Exception as e:
             logger.error(f"Failed to log audit: {e}")
@@ -193,7 +225,7 @@ class AuditService:
         # Define sort field mapping
         sort_mapping = {
             "created": AuditLog.gmt_created,
-            "duration": AuditLog.end_time - AuditLog.start_time,  # Calculated field
+            "duration": AuditLog.duration_ms,  # Stored column — sortable without expression
             "status_code": AuditLog.status_code,
             "api_name": AuditLog.api_name,
         }
@@ -246,12 +278,13 @@ class AuditService:
 
             return items, total
 
-        # Execute query with proper session management
+        # Execute query with proper session management.
+        # Open the session, execute the lightweight query, and close it before
+        # any post-processing so the connection is returned to the pool quickly.
         audit_logs = None
         total = 0
-        async for session in get_async_session():
+        async with self._make_session() as session:
             audit_logs, total = await _list_audit_logs(session)
-            break  # Only process one session
 
         # Post-process audit logs outside of session to avoid long session occupation
         processed_logs = []
@@ -270,11 +303,10 @@ class AuditService:
                 else:
                     log.resource_id = None
 
-            # Calculate duration if both times are available
-            if log.start_time and log.end_time:
+            # duration_ms is now stored on the row; fall back to computing
+            # it on the fly for rows written before this migration.
+            if log.duration_ms is None and log.start_time and log.end_time:
                 log.duration_ms = log.end_time - log.start_time
-            else:
-                log.duration_ms = None
 
             processed_logs.append(log)
 
