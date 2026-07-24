@@ -12,6 +12,7 @@ from aperag.websearch.search.base_search import BaseSearchProvider
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
 from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
+from aperag.websearch.search.providers.serpbase_search_provider import SerpBaseSearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,8 @@ class SearchService:
             "jina": JinaSearchProvider,
             "jina_search": JinaSearchProvider,
             "llm_txt": LLMTxtSearchProvider,
+            "google": SerpBaseSearchProvider,
+            "serpbase": SerpBaseSearchProvider,
         }
 
         provider_class = provider_registry.get(self.provider_name.lower())
