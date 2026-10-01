@@ -12,6 +12,7 @@ from aperag.websearch.search.base_search import BaseSearchProvider
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
 from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
+from aperag.websearch.search.providers.youcom_search_provider import YouComSearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,8 @@ class SearchService:
             "ddg": DuckDuckGoProvider,
             "jina": JinaSearchProvider,
             "jina_search": JinaSearchProvider,
+            "youcom": YouComSearchProvider,
+            "you_com": YouComSearchProvider,
             "llm_txt": LLMTxtSearchProvider,
         }
 

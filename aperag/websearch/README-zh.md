@@ -59,7 +59,8 @@ aperag/websearch/
 │   └── providers/             # 搜索提供商
 │       ├── duckduckgo_search_provider.py  # DuckDuckGo搜索
 │       ├── jina_search_provider.py        # JINA AI搜索
-│       └── llm_txt_search_provider.py     # LLM.txt发现搜索
+│       ├── llm_txt_search_provider.py     # LLM.txt发现搜索
+│       └── youcom_search_provider.py      # You.com搜索
 ├── reader/                     # 内容读取功能
 │   ├── base_reader.py         # 读取基类
 │   ├── reader_service.py      # 读取服务
@@ -232,6 +233,47 @@ request = WebSearchRequest(
 
 response = await web_search_view(request)
 print(f"并行搜索: {response.search_engine}")  # "parallel(2 sources)"
+```
+
+### 4. YouComSearchProvider
+
+基于You.com Search API的搜索provider，返回带标题、URL和摘要的结构化结果。
+
+#### 特点
+- 🌐 基于You.com Search API（`POST https://ydc-index.io/v1/search`）
+- 🔑 需要You.com API密钥（在 https://you.com/platform/api-keys 获取）
+- 📝 返回结构化结果：标题、URL、摘要
+- 🌍 支持多语言结果（BCP 47格式的language参数）
+- 🎯 支持站点特定搜索（原生include_domains白名单过滤）
+- 🛡️ 强化错误处理和超时管理
+
+#### 基础用法
+
+```python
+from aperag.websearch.search.search_service import SearchService
+from aperag.schema.view_models import WebSearchRequest
+
+# 创建You.com搜索服务
+search_service = SearchService(
+    provider_name="youcom",
+    provider_config={
+        "api_key": "your_youcom_api_key"
+    }
+)
+
+# 执行搜索
+request = WebSearchRequest(
+    query="ApeRAG架构设计",
+    max_results=5,
+    locale="zh-CN"
+)
+
+response = await search_service.search(request)
+for result in response.results:
+    print(f"标题: {result.title}")
+    print(f"URL: {result.url}")
+    print(f"摘要: {result.snippet}")
+    print(f"域名: {result.domain}")
 ```
 
 ## 🆕 并行搜索视图层
