@@ -18,6 +18,7 @@ from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
 from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
+from aperag.websearch.search.providers.youcom_search_provider import YouComSearchProvider
 from aperag.websearch.search.search_service import SearchService
 from aperag.websearch.utils.url_validator import URLValidator
 
@@ -47,7 +48,12 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_provider_parameter_validation(self):
         """Test provider-level parameter validation."""
-        providers = [DuckDuckGoProvider(), JinaSearchProvider({"api_key": "test"}), LLMTxtSearchProvider()]
+        providers = [
+            DuckDuckGoProvider(),
+            JinaSearchProvider({"api_key": "test"}),
+            YouComSearchProvider({"api_key": "***"}),
+            LLMTxtSearchProvider(),
+        ]
 
         for provider in providers:
             # Test negative max_results
