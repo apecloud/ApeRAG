@@ -6,6 +6,7 @@ Web search provider using DuckDuckGo search engine.
 
 import asyncio
 import logging
+import time
 from datetime import datetime
 from typing import List, Optional
 
@@ -16,18 +17,38 @@ from aperag.websearch.utils.url_validator import URLValidator
 logger = logging.getLogger(__name__)
 
 try:
-    from duckduckgo_search import DDGS
-except ImportError:
-    logger.error("duckduckgo_search package is required. Install with: pip install duckduckgo-search")
-    raise
+    # ``ddgs`` is the renamed and actively maintained successor of
+    # ``duckduckgo-search``. The 8.x line pins its metasearch to a single bing
+    # backend and raises ``DuckDuckGoSearchException("<url> return None")`` as
+    # soon as that backend returns an empty page, which broke the DuckDuckGo
+    # fallback for users without a JINA key (see issue #1722). The old package
+    # is kept only as a last-resort fallback for environments that still ship
+    # it.
+    from ddgs import DDGS
+except ImportError:  # pragma: no cover - depends on the installed packages
+    try:
+        from duckduckgo_search import DDGS  # type: ignore[no-redef]
+    except ImportError:
+        logger.error("ddgs package is required. Install with: pip install ddgs")
+        raise
+
+
+class DuckDuckGoSearchError(Exception):
+    """Raised when the DuckDuckGo backends keep failing for a query."""
 
 
 class DuckDuckGoProvider(BaseSearchProvider):
     """
     DuckDuckGo search provider implementation.
 
-    Uses the duckduckgo-search library to perform web searches.
+    Uses the ``ddgs`` metasearch library to perform web searches.
     """
+
+    # The metasearch backends are flaky (empty pages, rate limiting, backend
+    # rotation): retry a few times with exponential backoff before giving up
+    # on a query.
+    max_attempts = 3
+    retry_backoff = 0.5
 
     def __init__(self, config: dict = None):
         """
@@ -134,17 +155,50 @@ class DuckDuckGoProvider(BaseSearchProvider):
         # Configure DuckDuckGo search
         region = "cn-zh" if locale.startswith("zh") else "wt-wt"
 
-        # Perform search
-        with DDGS() as ddgs:
-            search_results = list(
-                ddgs.text(
+        # Perform search, retrying transient backend failures
+        search_results: List[dict] = []
+        last_error: Optional[Exception] = None
+
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                with DDGS() as ddgs:
+                    search_results = list(
+                        ddgs.text(
+                            query,
+                            region=region,
+                            safesearch="moderate",
+                            timelimit=None,
+                            max_results=max_results,
+                        )
+                    )
+            except Exception as e:
+                last_error = e
+                search_results = []
+                logger.warning(
+                    "DuckDuckGo search attempt %d/%d failed for query %r: %s",
+                    attempt,
+                    self.max_attempts,
                     query,
-                    region=region,
-                    safesearch="moderate",
-                    timelimit=None,
-                    max_results=max_results,
+                    e,
                 )
-            )
+            else:
+                last_error = None
+                if search_results:
+                    break
+                # An empty result set is a normal answer (rare query), not a
+                # backend failure: do not retry it.
+                logger.info("DuckDuckGo returned no results for query %r", query)
+                break
+
+            if attempt < self.max_attempts:
+                time.sleep(self.retry_backoff * (2 ** (attempt - 1)))
+
+        if not search_results and last_error is not None:
+            # Surface the real provider error instead of letting the caller
+            # report a misleading "both providers failed" message.
+            raise DuckDuckGoSearchError(
+                f"DuckDuckGo search failed after {self.max_attempts} attempts: {last_error}"
+            ) from last_error
 
         # Convert results to our format
         results = []
