@@ -416,4 +416,11 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
         async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
             return await duckduckgo_service.search(request)
     except Exception as e:
-        raise WebSearchError(f"Both JINA and DuckDuckGo search failed. Last error: {str(e)}") from e
+        if jina_api_key:
+            detail = f"JINA search failed and the DuckDuckGo fallback also failed: {e}"
+        else:
+            detail = (
+                "DuckDuckGo search failed. JINA was not attempted because no JINA API key "
+                f"is configured for this user, so there is no other provider to fall back to: {e}"
+            )
+        raise WebSearchError(detail) from e
